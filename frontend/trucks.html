@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Trucks & Routes — WasteIQ · PMC</title>
+<link rel="stylesheet" href="theme.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+.route-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);border-left:4px solid var(--g500);padding:18px 20px;margin-bottom:14px;transition:border-color var(--t);}
+.route-card.urgent{border-left-color:var(--red);}
+.route-card.moderate{border-left-color:var(--amber);}
+.route-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;}
+.route-head strong{font-family:var(--font-head);font-size:1rem;font-weight:700;color:var(--text);}
+.route-meta{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;}
+.route-meta span{font-size:.78rem;color:var(--text-mid);display:flex;align-items:center;gap:5px;}
+.stops-grid{display:flex;flex-wrap:wrap;gap:8px;}
+.stop-chip{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:.75rem;display:flex;align-items:center;gap:6px;color:var(--text-mid);}
+.stop-chip .chip-dot{width:8px;height:8px;border-radius:50%;}
+.truck-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;display:flex;align-items:center;gap:14px;transition:border-color var(--t),box-shadow var(--t);}
+.truck-card:hover{border-color:var(--g300);box-shadow:var(--shadow);}
+.truck-avatar{width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;background:var(--g50);}
+.truck-info strong{display:block;font-weight:700;font-size:.95rem;color:var(--text);}
+.truck-info span{font-size:.78rem;color:var(--text-mid);}
+.truck-info .driver{font-size:.8rem;color:var(--text-mid);margin-top:3px;}
+.sched-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:var(--g50);border:1px solid rgba(34,197,94,.2);font-size:.82rem;color:var(--g700);font-weight:500;margin:4px;}
+[data-theme="dark"] .sched-badge{background:rgba(34,197,94,.06);color:var(--g300);}
+</style>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>pageInit('trucks.html','Trucks & Route Optimization','Fleet Management · Smart Routing');</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const pc=document.getElementById('page-content');
+let trucks=[],routes=[],schedules=[],truckMap=null;
+const vanStep={};
+const vanMarkers={};
+
+pc.innerHTML=`
+<div class="page-header">
+  <h1>Trucks & Route Optimization</h1>
+  <p>Fleet monitoring, schedule management and AI-powered shortest-path route planning</p>
+</div>
+
+<!-- Truck Cards -->
+<div class="section-grid cols-2" style="margin-bottom:20px">
+  <div class="box">
+    <div class="box-head"><h3>🚛 Garbage Truck Fleet</h3><button class="btn btn-sm btn-secondary" onclick="loadTrucks()">↺ Refresh</button></div>
+    <div class="box-body" id="truck-cards" style="display:grid;grid-template-columns:1fr;gap:10px"></div>
+  </div>
+  <div class="box">
+    <div class="box-head"><h3>📋 Pickup Schedule</h3></div>
+    <div class="box-body" id="sched-panel"></div>
+  </div>
+</div>
+
+<!-- Map -->
+<div class="box" style="margin-bottom:20px">
+  <div class="box-head">
+    <h3>🗺 Live Truck Tracking</h3>
+    <div style="display:flex;gap:8px;align-items:center;font-size:.75rem;color:var(--text-sub)">
+      🔵 Truck &nbsp; 🟢 Normal Bin &nbsp; 🟡 Medium &nbsp; 🔴 Critical
+    </div>
+  </div>
+  <div id="truck-map" style="height:380px"></div>
+</div>
+
+<!-- Route Optimization -->
+<div class="box">
+  <div class="box-head">
+    <h3>🧠 Optimized Collection Routes</h3>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:.75rem;color:var(--text-sub)">Sorted by average fill level (greedy priority)</span>
+      <button class="btn btn-sm btn-primary" onclick="loadRoutes()">↺ Recalculate</button>
+    </div>
+  </div>
+  <div class="box-body">
+    <div style="background:var(--g50);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:14px;margin-bottom:18px;font-size:.84rem;color:var(--g700)">
+      <strong>Algorithm:</strong> Bins are sorted by fill level (highest first) within each zone. Zones with average fill &gt;70% are <span style="color:var(--red);font-weight:600">Urgent</span>, 40–70% are <span style="color:#d97706;font-weight:600">Moderate</span>. Route skips bins ≤20% fill to optimize fuel efficiency.
+    </div>
+    <div id="routes-container"></div>
+  </div>
+</div>
+
+<!-- Schedule Table -->
+<div class="box" style="margin-top:20px">
+  <div class="box-head"><h3>📅 Full Weekly Schedule</h3></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Day</th><th>Time</th><th>Zone</th><th>Vehicle</th><th>Driver</th><th>Phone</th></tr></thead>
+      <tbody id="sched-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Status Update Modal -->
+<div class="modal-bg" id="status-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-head"><h3>🚛 Update Truck Status</h3><button class="modal-close" onclick="closeStatusModal()">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:.85rem;color:var(--text-mid);margin-bottom:14px">Truck: <strong id="sm-vehicle"></strong></p>
+      <div class="fg"><label>Status</label>
+        <select id="sm-status">
+          <option value="active">Active (On Road)</option>
+          <option value="idle">Idle (Parked)</option>
+          <option value="maintenance">Maintenance</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeStatusModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveStatus()">Update</button>
+    </div>
+  </div>
+</div>`;
+
+let editTruckId=null;
+
+async function loadTrucks(){
+  const {data}=await apiGet('/trucks');
+  trucks=data||[];
+  const container=document.getElementById('truck-cards');
+  container.innerHTML=trucks.map(t=>`
+    <div class="truck-card">
+      <div class="truck-avatar">${t.status==='active'?'🚛':t.status==='idle'?'🅿️':'🔧'}</div>
+      <div class="truck-info" style="flex:1">
+        <strong>${t.vehicle_no}</strong>
+        <div class="driver">👤 ${t.driver_name} · 📞 ${t.driver_phone||'—'}</div>
+        <span>Zone: ${t.zone_name||'—'}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        ${statusBadge(t.status)}
+        <button class="btn btn-sm btn-secondary" onclick="openStatusModal(${t.truck_id},'${t.vehicle_no}','${t.status}')">Edit</button>
+      </div>
+    </div>`).join('');
+  if(truckMap)refreshTruckMap();
+}
+
+async function loadSchedules(){
+  const {data}=await apiGet('/schedules');
+  schedules=data||[];
+  // Compact schedule panel
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const byDay={};
+  schedules.forEach(s=>{if(!byDay[s.pickup_day])byDay[s.pickup_day]=[];byDay[s.pickup_day].push(s);});
+  document.getElementById('sched-panel').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">${
+    days.filter(d=>byDay[d]).flatMap(d=>byDay[d].map(s=>`<div class="sched-badge">📅 ${d} ${s.pickup_time} · ${s.zone_name}</div>`)).join('')
+  }</div>`;
+  // Full table
+  document.getElementById('sched-tbody').innerHTML=schedules.map(s=>`<tr>
+    <td><strong>${s.pickup_day}</strong></td>
+    <td>${s.pickup_time}</td>
+    <td>${s.zone_name}</td>
+    <td>${s.vehicle_no}</td>
+    <td>${s.driver_name}</td>
+    <td class="td-muted">${s.driver_phone||'—'}</td>
+  </tr>`).join('');
+}
+
+async function loadRoutes(){
+  const {data}=await apiGet('/routes');
+  routes=data||[];
+  const container=document.getElementById('routes-container');
+  if(!routes.length){container.innerHTML='<div class="empty-state"><div class="empty-icon">✅</div><p>No routes — all bins below 20% fill!</p></div>';return;}
+  container.innerHTML=routes.map((r,idx)=>`
+    <div class="route-card ${r.priority}">
+      <div class="route-head">
+        <strong>Route ${idx+1}: ${r.zone_name}</strong>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${priorityBadge(r.priority)}
+          <span class="badge badge-gray">Avg ${r.avg_fill}%</span>
+        </div>
+      </div>
+      <div class="route-meta">
+        <span>🚛 ${r.truck?.vehicle_no||'Unassigned'}</span>
+        <span>👤 ${r.truck?.driver_name||'—'}</span>
+        <span>📍 ${r.stops.length} stops</span>
+        <span>📏 ~${r.estimated_km} km</span>
+        <span>⏱ ~${r.estimated_min} min</span>
+      </div>
+      <div class="stops-grid">
+        ${r.stops.map((s,i)=>{
+          const col=s.fill_level>80?'#ef4444':s.fill_level>50?'#f59e0b':'#22c55e';
+          return `<div class="stop-chip"><span class="chip-dot" style="background:${col}"></span>${i+1}. Bin#${s.bin_id} ${s.fill_level}%</div>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+// Map
+async function initMap(){
+  truckMap=L.map('truck-map').setView([18.52,73.87],13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(truckMap);
+  const {data:bins}=await apiGet('/bins');
+  (bins||[]).forEach(b=>{
+    const col=b.fill_level>80?'#ef4444':b.fill_level>50?'#f59e0b':'#22c55e';
+    const sz=b.fill_level>80?18:14;
+    L.marker([b.location_lat,b.location_lng],{icon:L.divIcon({className:'',html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${col};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]})})
+     .addTo(truckMap)
+     .bindPopup(`<div class="popup-title">Bin #${b.bin_id}</div><div class="popup-row"><span>Fill</span><strong style="color:${col}">${b.fill_level}%</strong></div><div class="popup-row"><span>Zone</span><span>${b.zone_name}</span></div>`);
+  });
+  refreshTruckMap();
+  // Animate trucks
+  const vRoutes={
+    1:[[18.5295,73.8465],[18.5302,73.8472],[18.5310,73.8480],[18.5318,73.8488],[18.5308,73.8492],[18.5298,73.8485]],
+    2:[[18.5075,73.8058],[18.5082,73.8065],[18.5090,73.8075],[18.5085,73.8085],[18.5078,73.8080],[18.5070,73.8068]],
+    3:[[18.5120,73.9295],[18.5128,73.9305],[18.5138,73.9318],[18.5130,73.9328],[18.5118,73.9315],[18.5108,73.9302]],
+    4:[[18.5195,73.8553],[18.5205,73.8563],[18.5215,73.8573],[18.5208,73.8583],[18.5198,73.8575],[18.5188,73.8563]],
+    5:[[18.5589,73.8078],[18.5598,73.8088],[18.5610,73.8098],[18.5605,73.8108],[18.5592,73.8100],[18.5582,73.8088]]
+  };
+  trucks.forEach(t=>{
+    vanStep[t.truck_id]=Math.floor(Math.random()*5);
+    const icon=L.divIcon({className:'',html:`<div style="background:#1a6eb5;color:#fff;border:2px solid #fff;padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;box-shadow:0 2px 8px rgba(0,0,0,.3);white-space:nowrap">🚛 ${t.vehicle_no}</div>`,iconAnchor:[40,14]});
+    const route=vRoutes[t.truck_id];
+    if(!route)return;
+    const pos=route[vanStep[t.truck_id]];
+    vanMarkers[t.truck_id]=L.marker(pos,{icon,zIndexOffset:1000}).addTo(truckMap)
+      .bindPopup(`<div class="popup-title">🚛 ${t.vehicle_no}</div><div class="popup-row"><span>Driver</span><strong>${t.driver_name}</strong></div><div class="popup-row"><span>Zone</span><span>${t.zone_name||'—'}</span></div><div class="popup-row"><span>Status</span><span>${t.status}</span></div>`);
+    setInterval(()=>{
+      if(t.status!=='active')return;
+      vanStep[t.truck_id]=(vanStep[t.truck_id]+1)%route.length;
+      vanMarkers[t.truck_id]?.setLatLng(route[vanStep[t.truck_id]]);
+    },3500);
+  });
+}
+
+function refreshTruckMap(){
+  trucks.forEach(t=>{
+    if(vanMarkers[t.truck_id]&&t.current_lat&&t.current_lng)
+      vanMarkers[t.truck_id].setLatLng([t.current_lat,t.current_lng]);
+  });
+}
+
+// Status modal
+function openStatusModal(id,vehicle,status){
+  editTruckId=id;
+  document.getElementById('sm-vehicle').textContent=vehicle;
+  document.getElementById('sm-status').value=status;
+  document.getElementById('status-modal').classList.add('open');
+}
+function closeStatusModal(){document.getElementById('status-modal').classList.remove('open');editTruckId=null;}
+async function saveStatus(){
+  const status=document.getElementById('sm-status').value;
+  const {ok}=await apiPut(`/trucks/${editTruckId}`,{status});
+  if(ok){closeStatusModal();toast('Truck status updated.');loadTrucks();}
+  else toast('Update failed.','err');
+}
+
+async function init(){
+  await loadTrucks();
+  await loadSchedules();
+  await loadRoutes();
+  await initMap();
+}
+init();
+</script>
+</body>
+</html>

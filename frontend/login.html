@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Sign In — WasteIQ · PMC</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--g900:#052e16;--g800:#14532d;--g700:#15803d;--g600:#16a34a;--g500:#22c55e;--g400:#4ade80;--g300:#86efac;--lime:#a3e635;--red:#ef4444;--n900:#111827;--n700:#374151;--n500:#6b7280;--n200:#e5e7eb;--n100:#f3f4f6;--fh:'Syne',system-ui,sans-serif;--fb:'DM Sans',system-ui,sans-serif;}
+html,body{height:100%;font-family:var(--fb);}
+body{display:grid;grid-template-columns:1fr 1fr;background:var(--g900);}
+.left{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:48px;overflow:hidden;min-height:100vh;}
+.left::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--g900),#0d3d1e,#0a2d16);}
+.mesh{position:absolute;inset:0;overflow:hidden;opacity:.5;}
+.mesh::before{content:'';position:absolute;top:-30%;left:-20%;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,var(--g600) 0%,transparent 65%);animation:pulse 8s ease-in-out infinite;}
+.mesh::after{content:'';position:absolute;bottom:-20%;right:-10%;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,var(--lime) 0%,transparent 65%);animation:pulse 6s ease-in-out infinite reverse;opacity:.4;}
+@keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.1);}}
+.lc{position:relative;z-index:1;}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:56px;}
+.brand-logo{width:46px;height:46px;background:linear-gradient(135deg,var(--g400),var(--lime));border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px;}
+.brand-text strong{display:block;font-family:var(--fh);font-size:1.2rem;font-weight:800;color:#fff;}
+.brand-text span{font-size:.68rem;color:rgba(255,255,255,.4);letter-spacing:.07em;text-transform:uppercase;}
+.hero-tag{display:inline-block;background:rgba(163,230,53,.15);border:1px solid rgba(163,230,53,.25);color:var(--lime);font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 12px;border-radius:20px;margin-bottom:18px;}
+.hero-h{font-family:var(--fh);font-size:2.5rem;font-weight:800;color:#fff;line-height:1.15;letter-spacing:-.03em;margin-bottom:18px;}
+.hero-h em{font-style:normal;color:var(--g400);}
+.hero-p{font-size:.88rem;color:rgba(255,255,255,.5);line-height:1.7;max-width:360px;margin-bottom:36px;}
+.features{display:flex;flex-direction:column;gap:13px;}
+.feat{display:flex;align-items:center;gap:13px;}
+.feat-i{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+.feat-t strong{display:block;font-size:.83rem;font-weight:600;color:#fff;}
+.feat-t span{font-size:.73rem;color:rgba(255,255,255,.4);}
+.lf{position:relative;z-index:1;}
+.stats-r{display:flex;gap:28px;}
+.si .num{font-family:var(--fh);font-size:1.5rem;font-weight:800;color:var(--g400);}
+.si .lbl{font-size:.66rem;color:rgba(255,255,255,.35);letter-spacing:.06em;text-transform:uppercase;}
+.right{background:#fff;display:flex;align-items:center;justify-content:center;padding:48px;overflow-y:auto;}
+.card{width:100%;max-width:400px;}
+.card h2{font-family:var(--fh);font-size:1.85rem;font-weight:800;color:var(--n900);letter-spacing:-.03em;margin-bottom:5px;}
+.card .sub{font-size:.86rem;color:var(--n500);margin-bottom:30px;}
+.fg{margin-bottom:15px;}
+.fg label{display:block;font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--n700);margin-bottom:5px;}
+.fg input{width:100%;border:1.5px solid var(--n200);border-radius:9px;padding:11px 13px;font-family:var(--fb);font-size:.9rem;color:var(--n900);outline:none;transition:.15s;}
+.fg input:focus{border-color:var(--g500);box-shadow:0 0 0 3px rgba(34,197,94,.12);}
+.btn-l{width:100%;padding:13px;margin-top:6px;background:linear-gradient(135deg,var(--g600),var(--g700));color:#fff;border:none;border-radius:9px;font-family:var(--fh);font-size:.95rem;font-weight:700;cursor:pointer;transition:.15s;box-shadow:0 4px 14px rgba(22,163,74,.3);}
+.btn-l:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(22,163,74,.35);}
+.err{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 13px;font-size:.82rem;color:#991b1b;margin-bottom:13px;display:none;}
+.err.show{display:block;}
+.div{display:flex;align-items:center;gap:12px;margin:22px 0;}
+.div::before,.div::after{content:'';flex:1;height:1px;background:var(--n200);}
+.div span{font-size:.71rem;color:var(--n500);}
+.demo-box{background:var(--n100);border:1px solid var(--n200);border-radius:10px;padding:14px;}
+.demo-box p{font-size:.69rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--n500);margin-bottom:9px;}
+.da{display:flex;align-items:center;justify-content:space-between;padding:8px 9px;border-radius:7px;cursor:pointer;transition:.12s;border:1px solid transparent;margin-bottom:5px;}
+.da:last-child{margin-bottom:0;}
+.da:hover{background:#fff;border-color:var(--n200);}
+.da strong{display:block;font-size:.79rem;font-weight:600;color:var(--n900);}
+.da span{font-size:.71rem;color:var(--n500);}
+.role{font-size:.67rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:4px;}
+.role.admin{background:rgba(22,163,74,.12);color:var(--g700);}
+.role.off{background:rgba(59,130,246,.1);color:#1d4ed8;}
+.ft{margin-top:24px;text-align:center;font-size:.73rem;color:var(--n500);}
+@media(max-width:860px){body{grid-template-columns:1fr;}.left{min-height:auto;padding:32px;}.features,.lf{display:none;}.hero-h{font-size:1.7rem;}.right{padding:32px 24px;min-height:100vh;align-items:flex-start;padding-top:40px;}}
+</style>
+</head>
+<body>
+<div class="left">
+  <div class="mesh"></div>
+  <div class="lc">
+    <div class="brand"><div class="brand-logo">♻️</div><div class="brand-text"><strong>WasteIQ</strong><span>Smart City Platform</span></div></div>
+    <div class="hero-tag">🏙 Pune Municipal Corporation</div>
+    <h1 class="hero-h">Smarter Waste.<br><em>Cleaner City.</em></h1>
+    <p class="hero-p">Real-time monitoring of bins, trucks, complaints and waste collection across all zones of Pune.</p>
+    <div class="features">
+      <div class="feat"><div class="feat-i">📡</div><div class="feat-t"><strong>Live Bin Monitoring</strong><span>IoT-connected bins with fill level alerts</span></div></div>
+      <div class="feat"><div class="feat-i">🗺</div><div class="feat-t"><strong>Route Optimization</strong><span>AI-powered shortest path for garbage trucks</span></div></div>
+      <div class="feat"><div class="feat-i">🤖</div><div class="feat-t"><strong>Waste Prediction</strong><span>ML linear regression for daily trend forecasting</span></div></div>
+    </div>
+  </div>
+  <div class="lf"><div class="stats-r"><div class="si"><div class="num">5</div><div class="lbl">Zones</div></div><div class="si"><div class="num">12</div><div class="lbl">Bins</div></div><div class="si"><div class="num">5</div><div class="lbl">Trucks</div></div><div class="si"><div class="num">10+</div><div class="lbl">Citizens</div></div></div></div>
+</div>
+<div class="right">
+  <div class="card">
+    <h2>Welcome back 👋</h2>
+    <p class="sub">Sign in to the PMC Waste Management dashboard</p>
+    <div class="err" id="err"></div>
+    <div class="fg"><label>Email Address</label><input type="email" id="email" placeholder="admin@pmc.gov.in" onkeydown="if(event.key==='Enter')login()"/></div>
+    <div class="fg"><label>Password</label><input type="password" id="pwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"/></div>
+    <button class="btn-l" id="lbtn" onclick="login()">Sign In to Dashboard →</button>
+    <div class="div"><span>or try a demo account</span></div>
+    <div class="demo-box">
+      <p>Quick Sign-In</p>
+      <div class="da" onclick="fill('admin@pmc.gov.in','admin123')"><div><strong>PMC Administrator</strong><span>admin@pmc.gov.in · admin123</span></div><span class="role admin">Admin</span></div>
+      <div class="da" onclick="fill('officer@pmc.gov.in','officer123')"><div><strong>Zone Officer</strong><span>officer@pmc.gov.in · officer123</span></div><span class="role off">Officer</span></div>
+    </div>
+    <div class="ft">© 2025 Pune Municipal Corporation · WasteIQ v2.0</div>
+  </div>
+</div>
+<script>
+const API='http://localhost:3001/api';
+if(sessionStorage.getItem('wms_token'))window.location.href='dashboard.html';
+function fill(e,p){document.getElementById('email').value=e;document.getElementById('pwd').value=p;login();}
+async function login(){
+  const btn=document.getElementById('lbtn'),err=document.getElementById('err');
+  const email=document.getElementById('email').value.trim(),pwd=document.getElementById('pwd').value;
+  err.classList.remove('show');
+  if(!email||!pwd){err.textContent='Please enter email and password.';err.classList.add('show');return;}
+  btn.textContent='Signing in…';btn.style.opacity='.7';btn.style.pointerEvents='none';
+  try{
+    const r=await fetch(API+'/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pwd})});
+    const d=await r.json();
+    if(!r.ok){err.textContent=d.error||'Login failed.';err.classList.add('show');btn.textContent='Sign In to Dashboard →';btn.style.opacity='';btn.style.pointerEvents='';return;}
+    sessionStorage.setItem('wms_token',d.token);sessionStorage.setItem('wms_user',JSON.stringify(d.user));
+    window.location.href='dashboard.html';
+  }catch(e){err.textContent='Cannot connect to server. Start backend first (node server.js).';err.classList.add('show');btn.textContent='Sign In to Dashboard →';btn.style.opacity='';btn.style.pointerEvents='';}
+}
+</script>
+</body>
+</html>

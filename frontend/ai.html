@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AI Predictions — WasteIQ · PMC</title>
+<link rel="stylesheet" href="theme.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.ai-hero{
+  background:linear-gradient(135deg,var(--g800),var(--g900));
+  border-radius:var(--radius-lg);padding:28px;
+  border:1px solid rgba(74,222,128,.15);
+  margin-bottom:20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;
+}
+.ai-hero-icon{font-size:56px;flex-shrink:0;}
+.ai-hero-text h2{font-family:var(--font-head);font-size:1.4rem;font-weight:800;color:#fff;margin-bottom:6px;}
+.ai-hero-text p{font-size:.85rem;color:rgba(255,255,255,.55);line-height:1.6;max-width:560px;}
+.ai-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(163,230,53,.15);border:1px solid rgba(163,230,53,.25);color:#a3e635;padding:4px 12px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.05em;margin-top:10px;}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;text-align:center;}
+.metric-card .metric-val{font-family:var(--font-head);font-size:1.8rem;font-weight:800;color:var(--text);margin:6px 0;}
+.metric-card .metric-lbl{font-size:.72rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-sub);}
+.metric-card .metric-sub{font-size:.78rem;color:var(--text-mid);margin-top:4px;}
+.pred-row{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);transition:background var(--t);}
+.pred-row:last-child{border-bottom:none;}
+.pred-row:hover{background:var(--g50);}
+[data-theme="dark"] .pred-row:hover{background:rgba(74,222,128,.04);}
+.pred-day{font-weight:600;font-size:.85rem;color:var(--text);min-width:100px;}
+.pred-bar-wrap{flex:1;margin:0 16px;}
+.pred-bar-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
+.pred-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#22c55e,#a3e635);transition:width .5s ease;}
+.pred-val{font-family:var(--font-head);font-size:.95rem;font-weight:700;color:var(--g600);min-width:70px;text-align:right;}
+[data-theme="dark"] .pred-val{color:var(--g400);}
+.trend-up{color:var(--red)!important;} .trend-down{color:var(--g600)!important;} .trend-stable{color:var(--amber)!important;}
+.algo-box{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:18px;font-size:.83rem;color:var(--text-mid);line-height:1.8;}
+.algo-box h4{font-family:var(--font-head);font-weight:700;color:var(--text);margin-bottom:10px;}
+.algo-box code{background:rgba(34,197,94,.1);color:var(--g600);padding:2px 7px;border-radius:4px;font-family:monospace;font-size:.82rem;}
+.sample-table{font-size:.8rem;}
+.sample-table th{font-size:.67rem!important;}
+</style>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>pageInit('ai.html','AI Waste Prediction','Machine Learning · Linear Regression · Forecasting');</script>
+<script>
+const pc=document.getElementById('page-content');
+let predChart=null,histChart=null;
+
+pc.innerHTML=`
+<!-- AI Hero -->
+<div class="ai-hero">
+  <div class="ai-hero-icon">🤖</div>
+  <div class="ai-hero-text">
+    <h2>AI Waste Generation Predictor</h2>
+    <p>Uses linear regression (Ordinary Least Squares) on historical collection data to forecast waste generation for the next 7 days. The model identifies daily trends and extrapolates future values to help plan collection schedules proactively.</p>
+    <div class="ai-badge">⚡ Live Model · Updated on page load</div>
+  </div>
+</div>
+
+<!-- Metrics -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:20px" id="pred-metrics">
+  <div class="metric-card"><div class="metric-lbl">Model</div><div class="metric-val" style="font-size:1rem">Linear Regression</div><div class="metric-sub">OLS method</div></div>
+  <div class="metric-card"><div class="metric-lbl">Trend Direction</div><div class="metric-val" id="m-trend">—</div><div class="metric-sub" id="m-slope">slope: —</div></div>
+  <div class="metric-card"><div class="metric-lbl">Next Day Forecast</div><div class="metric-val" id="m-next">— kg</div><div class="metric-sub">predicted</div></div>
+  <div class="metric-card"><div class="metric-lbl">7-Day Total</div><div class="metric-val" id="m-week">— kg</div><div class="metric-sub">projected</div></div>
+  <div class="metric-card"><div class="metric-lbl">Training Data</div><div class="metric-val" id="m-pts">—</div><div class="metric-sub">data points</div></div>
+</div>
+
+<div class="section-grid cols-2" style="margin-bottom:20px">
+  <div class="box">
+    <div class="box-head"><h3>📈 Historical + Predicted Trend</h3><span class="box-sub">Actual vs Linear Regression Forecast</span></div>
+    <div class="chart-container" style="height:280px"><canvas id="chart-combined"></canvas></div>
+  </div>
+  <div class="box">
+    <div class="box-head"><h3>📊 7-Day Prediction Breakdown</h3></div>
+    <div id="pred-list" style="padding:4px 0"></div>
+  </div>
+</div>
+
+<!-- Algorithm Explanation -->
+<div class="section-grid cols-2" style="margin-bottom:20px">
+  <div class="box">
+    <div class="box-head"><h3>🧮 Algorithm Details</h3></div>
+    <div class="box-body">
+      <div class="algo-box">
+        <h4>Linear Regression (OLS)</h4>
+        <p>We fit the model: <code>y = mx + b</code></p>
+        <p>Where <code>y</code> = waste in kg, <code>x</code> = day index</p>
+        <br/>
+        <p><strong>Slope (m):</strong> <code id="algo-slope">—</code> — rate of change per day</p>
+        <p><strong>Intercept (b):</strong> <code id="algo-intercept">—</code> — baseline waste</p>
+        <br/>
+        <p>Coefficients computed using OLS formulas:</p>
+        <p><code>m = Σ(xᵢ-x̄)(yᵢ-ȳ) / Σ(xᵢ-x̄)²</code></p>
+        <p><code>b = ȳ - m·x̄</code></p>
+        <br/>
+        <p>Future values predicted as: <code>ŷₙ = m·n + b</code></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="box-head"><h3>📋 Historical Data (Training Set)</h3></div>
+    <div class="table-wrap">
+      <table class="sample-table">
+        <thead><tr><th>#</th><th>Date</th><th>Actual Waste (kg)</th><th>Fitted Value (kg)</th></tr></thead>
+        <tbody id="hist-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Sample Dataset Info -->
+<div class="box">
+  <div class="box-head"><h3>📂 Sample Dataset Reference</h3><span class="box-sub">For academic submission / ML documentation</span></div>
+  <div class="box-body">
+    <p style="font-size:.84rem;color:var(--text-mid);margin-bottom:14px">The model trains on actual collection log data stored in the SQLite database. Each record represents one day's total waste collected across all zones.</p>
+    <div class="table-wrap">
+      <table class="sample-table">
+        <thead><tr><th>Day</th><th>Date (sample)</th><th>Zone</th><th>Bins Collected</th><th>Total Weight (kg)</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>2025-03-01</td><td>All</td><td>8</td><td>280.5</td><td>Weekend — lower generation</td></tr>
+          <tr><td>2</td><td>2025-03-02</td><td>All</td><td>10</td><td>320.0</td><td>Market day — spike</td></tr>
+          <tr><td>3</td><td>2025-03-03</td><td>All</td><td>7</td><td>260.0</td><td>Normal weekday</td></tr>
+          <tr><td>4</td><td>2025-03-04</td><td>All</td><td>11</td><td>345.2</td><td>Festival — high generation</td></tr>
+          <tr><td>5</td><td>2025-03-05</td><td>All</td><td>9</td><td>290.0</td><td>Normal</td></tr>
+          <tr><td>6</td><td>2025-03-06</td><td>All</td><td>12</td><td>380.0</td><td>Collection day — all zones</td></tr>
+          <tr><td>7</td><td>2025-03-07</td><td>All</td><td>6</td><td>210.0</td><td>Sunday — minimum</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.78rem;color:var(--text-sub);margin-top:12px">
+      ⚠️ This is a representative sample. The live model uses actual data from the Collection table in the database.
+      To add more training data, use the Collection Logs page or POST to <code style="font-family:monospace">/api/collections</code>.
+    </p>
+  </div>
+</div>`;
+
+async function loadPrediction(){
+  const {data}=await apiGet('/predict');
+  if(!data||!data.prediction)return;
+  const {historical,prediction,slope,trend}=data;
+
+  // Metrics
+  const trendEl=document.getElementById('m-trend');
+  trendEl.textContent=trend==='increasing'?'📈 Rising':trend==='decreasing'?'📉 Falling':'➡ Stable';
+  trendEl.className='metric-val '+(trend==='increasing'?'trend-up':trend==='decreasing'?'trend-down':'trend-stable');
+  document.getElementById('m-slope').textContent=`slope: ${slope>0?'+':''}${slope} kg/day`;
+  const nextVal=prediction[0]?.predicted||0;
+  document.getElementById('m-next').textContent=fmtNum(nextVal)+' kg';
+  document.getElementById('m-week').textContent=fmtNum(prediction.reduce((s,p)=>s+p.predicted,0))+' kg';
+  document.getElementById('m-pts').textContent=historical.length;
+  document.getElementById('algo-slope').textContent=slope;
+
+  // Compute intercept display
+  if(historical.length>=2){
+    const n=historical.length,xs=[...Array(n).keys()],ys=historical.map(d=>d.w);
+    const xm=xs.reduce((a,b)=>a+b,0)/n,ym=ys.reduce((a,b)=>a+b,0)/n;
+    const intercept=Math.round((ym-slope*xm)*10)/10;
+    document.getElementById('algo-intercept').textContent=intercept;
+  }
+
+  // Combined chart
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+  const cd=chartDefaults();applyChartDefaults(cd);
+  if(predChart)predChart.destroy();
+
+  const histLabels=historical.map(d=>new Date(d.d+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'}));
+  const predLabels=prediction.map(p=>new Date(p.date+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'}));
+  const n=historical.length;
+  const xs=[...Array(n).keys()];
+  const fitted=xs.map(x=>Math.max(0,Math.round((slope*x+(historical.reduce((a,b)=>a+b.w,0)/n-slope*(n-1)/2))*10)/10));
+
+  predChart=new Chart(document.getElementById('chart-combined'),{
+    data:{
+      labels:[...histLabels,...predLabels],
+      datasets:[
+        {type:'bar',label:'Actual (kg)',data:[...historical.map(d=>d.w),...prediction.map(()=>null)],backgroundColor:'rgba(34,197,94,.35)',borderRadius:5,order:2},
+        {type:'line',label:'Fitted Line',data:[...fitted,...prediction.map(()=>null)],borderColor:'#22c55e',borderWidth:2,borderDash:[4,4],pointRadius:0,tension:0,order:1},
+        {type:'line',label:'Forecast (kg)',data:[...historical.map(()=>null),null,...prediction.map(p=>p.predicted)],borderColor:'#a3e635',backgroundColor:'rgba(163,230,53,.1)',borderWidth:2.5,pointBackgroundColor:'#a3e635',pointRadius:5,fill:true,tension:.3,order:0}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:cd.fontColor,padding:14}}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:cd.fontColor,maxRotation:45,font:{size:11}}},
+        y:{grid:{color:cd.gridColor},ticks:{color:cd.fontColor},beginAtZero:true,title:{display:true,text:'kg',color:cd.fontColor}}
+      },
+      interaction:{mode:'index',intersect:false}
+    }
+  });
+
+  // Prediction list
+  const maxPred=Math.max(...prediction.map(p=>p.predicted),1);
+  document.getElementById('pred-list').innerHTML=prediction.map((p,i)=>`
+    <div class="pred-row">
+      <span class="pred-day">${new Date(p.date+'T00:00').toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'})}</span>
+      <div class="pred-bar-wrap"><div class="pred-bar-track"><div class="pred-bar-fill" style="width:${(p.predicted/maxPred*100).toFixed(1)}%"></div></div></div>
+      <span class="pred-val">${fmtNum(p.predicted)} kg</span>
+    </div>`).join('');
+
+  // Historical table with fitted values
+  document.getElementById('hist-table').innerHTML=historical.slice(-10).map((d,i)=>{
+    const xi=Math.max(0,n-historical.length+i);
+    const ym=historical.reduce((a,b)=>a+b.w,0)/n;
+    const fit=Math.max(0,Math.round((slope*xi+(ym-slope*(n-1)/2))*10)/10);
+    const diff=d.w-fit;
+    return `<tr>
+      <td>${i+1}</td>
+      <td class="td-muted">${fmtDate(d.d)}</td>
+      <td><strong>${fmtNum(d.w)} kg</strong></td>
+      <td style="color:${Math.abs(diff)<20?'var(--g600)':'var(--amber)'}">${fmtNum(fit)} kg <small style="color:var(--text-sub)">(${diff>=0?'+':''}${Math.round(diff)})</small></td>
+    </tr>`;
+  }).join('');
+}
+
+loadPrediction();
+</script>
+</body>
+</html>

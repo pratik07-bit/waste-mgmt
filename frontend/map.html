@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Live Map — WasteIQ · PMC</title>
+<link rel="stylesheet" href="theme.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+#city-map{height:calc(100vh - 180px);min-height:500px;border-radius:var(--radius-lg);border:1px solid var(--border);}
+.map-controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center;}
+.map-toggle{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--font-body);font-size:.8rem;font-weight:600;cursor:pointer;background:var(--surface);color:var(--text-mid);transition:all var(--t);}
+.map-toggle.on{background:var(--g600);border-color:var(--g600);color:#fff;}
+.map-toggle:hover{border-color:var(--g500);}
+.legend-panel{position:absolute;bottom:28px;left:16px;z-index:500;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow-md);min-width:180px;}
+.legend-panel.hidden{display:none;}
+.legend-title{font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-sub);margin-bottom:8px;}
+.legend-row{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--text-mid);margin-bottom:5px;}
+.legend-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.legend-sq{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+.map-info{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+.map-info-item{text-align:center;}
+.map-info-item .num{font-family:var(--font-head);font-size:1.5rem;font-weight:800;color:var(--text);}
+.map-info-item .lbl{font-size:.7rem;color:var(--text-sub);letter-spacing:.05em;text-transform:uppercase;margin-top:2px;}
+</style>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>pageInit('map.html','Live City Map','Real-time · Bins · Trucks · Complaints');</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const pc=document.getElementById('page-content');
+
+pc.innerHTML=`
+<div class="page-header">
+  <h1>Live City Map</h1>
+  <p>Real-time view of all bins, trucks, complaints and zone boundaries across Pune</p>
+</div>
+
+<div class="map-controls">
+  <button class="map-toggle on" id="tog-bins"    onclick="toggleLayer('bins')">🗑 Bins</button>
+  <button class="map-toggle on" id="tog-trucks"  onclick="toggleLayer('trucks')">🚛 Trucks</button>
+  <button class="map-toggle on" id="tog-comps"   onclick="toggleLayer('comps')">📢 Complaints</button>
+  <button class="map-toggle on" id="tog-zones"   onclick="toggleLayer('zones')">🗺 Zones</button>
+  <div style="margin-left:auto;display:flex;gap:8px">
+    <button class="btn btn-sm btn-secondary" onclick="cityMap.setView([18.52,73.87],13)">🏙 Reset View</button>
+    <button class="btn btn-sm btn-primary" onclick="refreshAll()">↺ Refresh</button>
+  </div>
+</div>
+
+<div style="position:relative">
+  <div id="city-map"></div>
+  <div class="legend-panel" id="legend">
+    <div class="legend-title">Map Legend</div>
+    <div class="legend-row"><div class="legend-dot" style="background:#22c55e"></div> Bin — Empty</div>
+    <div class="legend-row"><div class="legend-dot" style="background:#f59e0b"></div> Bin — Medium</div>
+    <div class="legend-row"><div class="legend-dot" style="background:#ef4444;border:2px solid #fff;box-shadow:0 0 0 1px #ef4444"></div> Bin — Critical</div>
+    <div class="legend-row"><div class="legend-sq" style="background:#1a6eb5"></div> Garbage Truck</div>
+    <div class="legend-row"><div class="legend-sq" style="background:#f59e0b"></div> Complaint — Pending</div>
+    <div class="legend-row"><div class="legend-sq" style="background:#22c55e"></div> Complaint — Resolved</div>
+  </div>
+</div>
+
+<div class="map-info" id="map-info">
+  <div class="map-info-item"><div class="num" id="mi-bins">—</div><div class="lbl">Total Bins</div></div>
+  <div class="map-info-item"><div class="num" id="mi-crit">—</div><div class="lbl">Critical Bins</div></div>
+  <div class="map-info-item"><div class="num" id="mi-trucks">—</div><div class="lbl">Active Trucks</div></div>
+  <div class="map-info-item"><div class="num" id="mi-comps">—</div><div class="lbl">Open Complaints</div></div>
+</div>`;
+
+let cityMap,layerGroups={bins:null,trucks:null,comps:null,zones:null};
+const layerOn={bins:true,trucks:true,comps:true,zones:true};
+const vanStep={},vanMarkers={};
+
+function toggleLayer(name){
+  layerOn[name]=!layerOn[name];
+  const btn=document.getElementById('tog-'+name);
+  btn.classList.toggle('on',layerOn[name]);
+  if(layerGroups[name]){
+    if(layerOn[name])cityMap.addLayer(layerGroups[name]);
+    else cityMap.removeLayer(layerGroups[name]);
+  }
+}
+
+async function initMap(){
+  cityMap=L.map('city-map',{zoomControl:true}).setView([18.52,73.87],13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(cityMap);
+  // Zone boundaries
+  const zoneCoords={
+    'Shivajinagar':[[18.545,73.830],[18.545,73.865],[18.515,73.865],[18.515,73.830]],
+    'Kothrud':[[18.525,73.795],[18.525,73.825],[18.490,73.825],[18.490,73.795]],
+    'Hadapsar':[[18.530,73.910],[18.530,73.950],[18.495,73.950],[18.495,73.910]],
+    'Deccan':[[18.535,73.840],[18.535,73.870],[18.510,73.870],[18.510,73.840]],
+    'Aundh':[[18.580,73.790],[18.580,73.825],[18.545,73.825],[18.545,73.790]]
+  };
+  const zoneColors=['#22c55e','#3b82f6','#f59e0b','#8b5cf6','#ef4444'];
+  layerGroups.zones=L.layerGroup();
+  Object.entries(zoneCoords).forEach(([name,coords],i)=>{
+    L.polygon(coords,{color:zoneColors[i],fillColor:zoneColors[i],fillOpacity:.07,weight:1.5,dashArray:'4,4'})
+     .addTo(layerGroups.zones)
+     .bindPopup(`<div class="popup-title">📍 ${name} Zone</div>`);
+  });
+  cityMap.addLayer(layerGroups.zones);
+  await refreshAll();
+  // Animate trucks
+  setInterval(animateTrucks,3500);
+}
+
+async function refreshAll(){
+  await loadBinLayer();
+  await loadTruckLayer();
+  await loadComplaintLayer();
+  await updateInfo();
+}
+
+async function loadBinLayer(){
+  if(layerGroups.bins){cityMap.removeLayer(layerGroups.bins);}
+  layerGroups.bins=L.layerGroup();
+  const {data:bins}=await apiGet('/bins');
+  (bins||[]).forEach(b=>{
+    const col=b.fill_level>80?'#ef4444':b.fill_level>50?'#f59e0b':'#22c55e';
+    const sz=b.fill_level>80?20:b.fill_level>50?16:13;
+    const pulse=b.fill_level>80?`animation:pulse 1.5s infinite;`:'';
+    const icon=L.divIcon({className:'',html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${col};border:2.5px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.3);${pulse}"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});
+    L.marker([b.location_lat,b.location_lng],{icon})
+     .addTo(layerGroups.bins)
+     .bindPopup(`<div class="popup-title">🗑 Bin #${b.bin_id} — ${b.bin_type.charAt(0).toUpperCase()+b.bin_type.slice(1)}</div>
+       <div class="popup-row"><span>Zone</span><strong>${b.zone_name}</strong></div>
+       <div class="popup-row"><span>Fill Level</span><strong style="color:${col}">${b.fill_level}%</strong></div>
+       <div class="popup-row"><span>Address</span><span>${b.address||'—'}</span></div>
+       <div class="popup-row"><span>Last Collected</span><span>${fmtDateTime(b.last_collected)}</span></div>
+       <div class="popup-row"><span>Capacity</span><span>${b.capacity_kg} kg</span></div>`);
+  });
+  if(layerOn.bins)cityMap.addLayer(layerGroups.bins);
+}
+
+const vRoutes={
+  1:[[18.5295,73.8465],[18.5302,73.8472],[18.5310,73.8480],[18.5318,73.8488],[18.5308,73.8492],[18.5298,73.8485]],
+  2:[[18.5075,73.8058],[18.5082,73.8065],[18.5090,73.8075],[18.5085,73.8085],[18.5078,73.8080],[18.5070,73.8068]],
+  3:[[18.5120,73.9295],[18.5128,73.9305],[18.5138,73.9318],[18.5130,73.9328],[18.5118,73.9315],[18.5108,73.9302]],
+  4:[[18.5195,73.8553],[18.5205,73.8563],[18.5215,73.8573],[18.5208,73.8583],[18.5198,73.8575],[18.5188,73.8563]],
+  5:[[18.5589,73.8078],[18.5598,73.8088],[18.5610,73.8098],[18.5605,73.8108],[18.5592,73.8100],[18.5582,73.8088]]
+};
+
+async function loadTruckLayer(){
+  if(layerGroups.trucks){cityMap.removeLayer(layerGroups.trucks);}
+  layerGroups.trucks=L.layerGroup();
+  const {data:trucks}=await apiGet('/trucks');
+  (trucks||[]).forEach(t=>{
+    vanStep[t.truck_id]=vanStep[t.truck_id]||0;
+    const route=vRoutes[t.truck_id];if(!route)return;
+    const pos=route[vanStep[t.truck_id]];
+    const statusColor=t.status==='active'?'#1a6eb5':t.status==='idle'?'#6b7280':'#ef4444';
+    const icon=L.divIcon({className:'',html:`<div style="background:${statusColor};color:#fff;border:2px solid #fff;padding:4px 9px;font-size:11px;font-weight:700;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.3);white-space:nowrap">🚛 ${t.vehicle_no}</div>`,iconAnchor:[45,16],zIndexOffset:1000});
+    const marker=L.marker(pos,{icon,zIndexOffset:1000}).addTo(layerGroups.trucks)
+      .bindPopup(`<div class="popup-title">🚛 ${t.vehicle_no}</div>
+        <div class="popup-row"><span>Driver</span><strong>${t.driver_name}</strong></div>
+        <div class="popup-row"><span>Phone</span><span>${t.driver_phone||'—'}</span></div>
+        <div class="popup-row"><span>Zone</span><span>${t.zone_name||'—'}</span></div>
+        <div class="popup-row"><span>Status</span><span>${t.status}</span></div>
+        <div class="popup-row"><span>Capacity</span><span>${t.capacity_kg} kg</span></div>`);
+    vanMarkers[t.truck_id]=marker;
+  });
+  if(layerOn.trucks)cityMap.addLayer(layerGroups.trucks);
+}
+
+function animateTrucks(){
+  Object.entries(vRoutes).forEach(([id,route])=>{
+    vanStep[id]=(vanStep[id]||0+1)%route.length;
+    vanMarkers[id]?.setLatLng(route[vanStep[id]]);
+  });
+}
+
+async function loadComplaintLayer(){
+  if(layerGroups.comps){cityMap.removeLayer(layerGroups.comps);}
+  layerGroups.comps=L.layerGroup();
+  const {data:comps}=await apiGet('/complaints');
+  (comps||[]).filter(c=>c.location_lat&&c.location_lng).forEach(c=>{
+    const col=c.status==='resolved'?'#22c55e':c.status==='in_progress'?'#3b82f6':'#f59e0b';
+    const icon=L.divIcon({className:'',html:`<div style="width:16px;height:16px;background:${col};border:2px solid #fff;border-radius:3px;box-shadow:0 2px 6px rgba(0,0,0,.3);transform:rotate(45deg)"></div>`,iconSize:[16,16],iconAnchor:[8,8]});
+    L.marker([c.location_lat,c.location_lng],{icon})
+     .addTo(layerGroups.comps)
+     .bindPopup(`<div class="popup-title">📢 Complaint #${c.complaint_id}</div>
+       <div class="popup-row"><span>Filed by</span><strong>${c.citizen_name}</strong></div>
+       <div class="popup-row"><span>Type</span><span>${c.complaint_type}</span></div>
+       <div class="popup-row"><span>Zone</span><span>${c.zone_name||'—'}</span></div>
+       <div class="popup-row"><span>Status</span><span style="color:${col}">${c.status.replace('_',' ')}</span></div>
+       <div class="popup-row"><span>Filed</span><span>${fmtDate(c.created_at)}</span></div>`);
+  });
+  if(layerOn.comps)cityMap.addLayer(layerGroups.comps);
+}
+
+async function updateInfo(){
+  const [{data:bins},{data:trucks},{data:comps}]=await Promise.all([apiGet('/bins'),apiGet('/trucks'),apiGet('/complaints')]);
+  document.getElementById('mi-bins').textContent=(bins||[]).length;
+  document.getElementById('mi-crit').textContent=(bins||[]).filter(b=>b.fill_level>80).length;
+  document.getElementById('mi-trucks').textContent=(trucks||[]).filter(t=>t.status==='active').length;
+  document.getElementById('mi-comps').textContent=(comps||[]).filter(c=>c.status!=='resolved').length;
+}
+
+initMap();
+setInterval(refreshAll,45000);
+</script>
+<style>@keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.3);}}</style>
+</body>
+</html>

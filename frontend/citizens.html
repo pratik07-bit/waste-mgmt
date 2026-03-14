@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Citizens — WasteIQ · PMC</title>
+<link rel="stylesheet" href="theme.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>pageInit('citizens.html','Citizen Management','City Records · Citizens Database');</script>
+<script>
+const pc=document.getElementById('page-content');
+let zones=[],currentPage=1,pageSize=10,sortField='registered_at',sortOrder='desc';
+let editingId=null,deleteId=null,charts={};
+
+pc.innerHTML=`
+<div class="page-header">
+  <h1>Citizen Management</h1>
+  <p>Register, manage and monitor all citizens in the PMC waste management system</p>
+</div>
+
+<!-- Stats -->
+<div class="stat-grid" id="cit-stats" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))"></div>
+
+<!-- Charts -->
+<div class="section-grid cols-2" style="margin-bottom:20px">
+  <div class="box"><div class="box-head"><h3>📊 Citizens per Zone</h3></div><div class="chart-container"><canvas id="chart-zone"></canvas></div></div>
+  <div class="box"><div class="box-head"><h3>📈 Daily Registrations</h3><span class="box-sub">Last 7 days</span></div><div class="chart-container"><canvas id="chart-daily"></canvas></div></div>
+</div>
+
+<!-- Register form -->
+<div class="box" style="margin-bottom:20px" id="form-box">
+  <div class="box-head">
+    <h3 id="form-title">➕ Register New Citizen</h3>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm btn-secondary" id="cancel-btn" style="display:none" onclick="cancelEdit()">✕ Cancel</button>
+    </div>
+  </div>
+  <div class="box-body">
+    <div class="alert alert-error" id="form-err"></div>
+    <div class="alert alert-success" id="form-ok"></div>
+    <div class="form-grid cols-2" style="margin-bottom:14px">
+      <div class="fg"><label>Full Name *</label><input type="text" id="f-name" placeholder="e.g. Priya Sharma" oninput="vName()"/><div class="field-hint" id="h-name"></div></div>
+      <div class="fg"><label>Phone Number *</label><input type="text" id="f-phone" placeholder="10-digit mobile" maxlength="10" oninput="vPhone()"/><div class="field-hint" id="h-phone"></div></div>
+      <div class="fg"><label>Email Address</label><input type="email" id="f-email" placeholder="example@email.com" oninput="vEmail()"/><div class="field-hint" id="h-email"></div></div>
+      <div class="fg"><label>Zone *</label><select id="f-zone"><option value="">Select zone…</option></select></div>
+      <div class="fg" style="grid-column:1/-1"><label>Address</label><input type="text" id="f-addr" placeholder="Street, Area (optional)"/></div>
+    </div>
+    <div class="form-footer">
+      <button class="btn btn-primary" id="submit-btn" onclick="submitCitizen()">✅ Register Citizen</button>
+      <span style="font-size:.75rem;color:var(--text-sub)">* Required fields</span>
+    </div>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="box">
+  <div class="box-head">
+    <h3>👥 Registered Citizens</h3>
+    <span class="box-sub" id="cit-count">—</span>
+  </div>
+  <div class="filter-bar">
+    <span class="filter-label">Search</span>
+    <input type="text" id="search" placeholder="Name or phone…" oninput="applyFilter()"/>
+    <span class="filter-label">Zone</span>
+    <select id="flt-zone" onchange="applyFilter()"><option value="">All Zones</option></select>
+    <span class="filter-label">Sort</span>
+    <select id="flt-sort" onchange="applySort()">
+      <option value="registered_at-desc">Newest First</option>
+      <option value="registered_at-asc">Oldest First</option>
+      <option value="name-asc">Name A–Z</option>
+      <option value="name-desc">Name Z–A</option>
+      <option value="zone_name-asc">Zone A–Z</option>
+    </select>
+    <button class="btn btn-sm btn-secondary" onclick="resetFilter()">Reset</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th onclick="sortBy('name')">Name <span id="si-name">↕</span></th>
+        <th>Phone</th><th>Email</th>
+        <th onclick="sortBy('zone_name')">Zone <span id="si-zone_name">↕</span></th>
+        <th>Address</th>
+        <th onclick="sortBy('registered_at')">Registered <span id="si-registered_at">↓</span></th>
+        <th>Actions</th>
+      </tr></thead>
+      <tbody id="cit-tbody"></tbody>
+    </table>
+  </div>
+  <div class="pag" id="pag">
+    <span class="pag-info" id="pag-info">—</span>
+    <div class="pag-btns" id="pag-btns"></div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-bg" id="edit-modal">
+  <div class="modal">
+    <div class="modal-head"><h3>✏️ Edit Citizen</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="edit-err"></div>
+      <input type="hidden" id="edit-id"/>
+      <div class="form-grid cols-2">
+        <div class="fg"><label>Full Name *</label><input id="e-name"/></div>
+        <div class="fg"><label>Phone *</label><input id="e-phone" maxlength="10"/></div>
+        <div class="fg"><label>Email</label><input type="email" id="e-email"/></div>
+        <div class="fg"><label>Zone *</label><select id="e-zone"></select></div>
+        <div class="fg" style="grid-column:1/-1"><label>Address</label><input id="e-addr"/></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm -->
+<div class="confirm-bg" id="confirm-bg">
+  <div class="confirm-box">
+    <div class="confirm-icon">🗑️</div>
+    <p class="confirm-msg" id="confirm-msg">Are you sure?</p>
+    <div class="confirm-btns">
+      <button class="btn btn-secondary" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="doDelete()">Yes, Delete</button>
+    </div>
+  </div>
+</div>`;
+
+async function initPage(){
+  const zRes=await apiGet('/zones');
+  zones=zRes.data||[];
+  ['f-zone','flt-zone','e-zone'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const extra=id==='flt-zone'?'<option value="">All Zones</option>':'<option value="">Select zone…</option>';
+    el.innerHTML=extra+zones.map(z=>`<option value="${z.zone_id}">${z.zone_name}</option>`).join('');
+  });
+  loadStats();loadCitizens();
+}
+
+async function loadStats(){
+  const {data}=await apiGet('/citizens/stats');
+  if(!data)return;
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+  const cd=chartDefaults();applyChartDefaults(cd);
+  const accents=['#22c55e','#ef4444','#f59e0b','#3b82f6','#8b5cf6'];
+  const accentBgs=['var(--g50)','rgba(239,68,68,.08)','rgba(245,158,11,.08)','rgba(59,130,246,.08)','rgba(139,92,246,.08)'];
+  const sg=document.getElementById('cit-stats');
+  sg.innerHTML=`
+    <div class="stat-card" style="--card-accent:${accents[0]}"><div class="card-icon" style="background:${accentBgs[0]}">👥</div><div><div class="card-label">Total Citizens</div><div class="card-val">${fmtNum(data.total)}</div><div class="card-sub">all zones</div></div></div>
+    <div class="stat-card" style="--card-accent:${accents[2]}"><div class="card-icon" style="background:${accentBgs[2]}">✨</div><div><div class="card-label">Registered Today</div><div class="card-val">${fmtNum(data.today)}</div><div class="card-sub">new citizens</div></div></div>
+    ${(data.byZone||[]).slice(0,3).map((z,i)=>`
+    <div class="stat-card" style="--card-accent:${accents[i+1]}"><div class="card-icon" style="background:${accentBgs[i+1]}">📍</div><div><div class="card-label">${z.zone_name}</div><div class="card-val">${fmtNum(z.cnt)}</div><div class="card-sub">citizens</div></div></div>`).join('')}`;
+
+  if(charts.zone)charts.zone.destroy();
+  charts.zone=new Chart(document.getElementById('chart-zone'),{
+    type:'doughnut',
+    data:{labels:(data.byZone||[]).map(z=>z.zone_name),datasets:[{data:(data.byZone||[]).map(z=>z.cnt),backgroundColor:['#22c55e','#4ade80','#16a34a','#86efac','#a3e635'],borderWidth:3,borderColor:dark?'#161b22':'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{color:cd.fontColor,padding:12}}}}
+  });
+
+  const last7=[];for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);last7.push(d.toISOString().slice(0,10));}
+  const dailyMap={};(data.daily||[]).forEach(d=>dailyMap[d.d]=d.cnt);
+  if(charts.daily)charts.daily.destroy();
+  charts.daily=new Chart(document.getElementById('chart-daily'),{
+    type:'line',
+    data:{
+      labels:last7.map(d=>new Date(d+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'})),
+      datasets:[{label:'registrations',data:last7.map(d=>dailyMap[d]||0),borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.1)',tension:.4,fill:true,pointBackgroundColor:'#22c55e',pointRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:cd.fontColor}},y:{grid:{color:cd.gridColor},ticks:{color:cd.fontColor,stepSize:1},beginAtZero:true}}}
+  });
+}
+
+async function loadCitizens(){
+  const search=document.getElementById('search').value;
+  const zone_id=document.getElementById('flt-zone').value;
+  const params=new URLSearchParams({search,zone_id,sort:sortField,order:sortOrder,page:currentPage,limit:pageSize});
+  const {data}=await apiGet('/citizens?'+params);
+  if(!data)return;
+  const rows=data.data||[];
+  document.getElementById('cit-count').textContent=`${data.total} citizen${data.total!==1?'s':''}`;
+  document.getElementById('cit-tbody').innerHTML=rows.length
+    ?rows.map(c=>`<tr>
+      <td><strong>${c.name}</strong></td>
+      <td>${c.phone}</td>
+      <td class="td-muted">${c.email||'—'}</td>
+      <td>${statusBadge('active').replace('active',c.zone_name||'—').replace('badge-green','badge-blue')}</td>
+      <td class="td-muted" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.address||'—'}</td>
+      <td class="td-muted">${fmtDate(c.registered_at)}</td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-warning" onclick="openEdit(${c.citizen_id})">✏️ Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="openDelete(${c.citizen_id},'${c.name.replace(/'/g,"\\'")}')">🗑</button>
+      </div></td>
+    </tr>`).join('')
+    :`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">👥</div><p>No citizens found. Try adjusting filters or register one above.</p></div></td></tr>`;
+  renderPag(data.total,data.page,data.pages);
+}
+
+function renderPag(total,page,pages){
+  const start=(page-1)*pageSize+1,end=Math.min(page*pageSize,total);
+  document.getElementById('pag-info').textContent=total>0?`Showing ${start}–${end} of ${total}`:'No records';
+  let h=`<button class="pag-btn" onclick="gotoPage(${page-1})" ${page<=1?'disabled':''}>‹</button>`;
+  for(let i=Math.max(1,page-2);i<=Math.min(pages,page+2);i++)
+    h+=`<button class="pag-btn ${i===page?'active':''}" onclick="gotoPage(${i})">${i}</button>`;
+  h+=`<button class="pag-btn" onclick="gotoPage(${page+1})" ${page>=pages?'disabled':''}>›</button>`;
+  document.getElementById('pag-btns').innerHTML=h;
+}
+function gotoPage(p){currentPage=p;loadCitizens();}
+function applyFilter(){currentPage=1;loadCitizens();}
+function applySort(){
+  const v=document.getElementById('flt-sort').value.split('-');
+  sortField=v[0];sortOrder=v[1];currentPage=1;loadCitizens();
+}
+function sortBy(f){
+  if(sortField===f)sortOrder=sortOrder==='asc'?'desc':'asc';else{sortField=f;sortOrder='asc';}
+  document.getElementById('flt-sort').value=`${sortField}-${sortOrder}`;
+  ['name','zone_name','registered_at'].forEach(k=>{const e=document.getElementById('si-'+k);if(e)e.textContent=k===sortField?(sortOrder==='asc'?'↑':'↓'):'↕';});
+  loadCitizens();
+}
+function resetFilter(){
+  document.getElementById('search').value='';document.getElementById('flt-zone').value='';
+  document.getElementById('flt-sort').value='registered_at-desc';
+  sortField='registered_at';sortOrder='desc';currentPage=1;loadCitizens();
+}
+
+// Validation
+function setField(id,hintId,msg,type){
+  const el=document.getElementById(id);if(!el)return;
+  el.className=type==='err'?'err':type==='ok'?'ok':'';
+  const h=document.getElementById(hintId);if(h){h.textContent=msg;h.className='field-hint '+(type||'');}
+}
+function vName(id='f-name',hi='h-name'){const v=document.getElementById(id)?.value.trim();if(!v){setField(id,hi,'Name required','err');return false;}if(v.length<2){setField(id,hi,'Too short','err');return false;}setField(id,hi,'✓','ok');return true;}
+function vPhone(id='f-phone',hi='h-phone'){const v=document.getElementById(id)?.value.trim();if(!v){setField(id,hi,'Phone required','err');return false;}if(!/^\d{10}$/.test(v)){setField(id,hi,'Must be 10 digits','err');return false;}setField(id,hi,'✓','ok');return true;}
+function vEmail(id='f-email',hi='h-email'){const v=document.getElementById(id)?.value.trim();if(!v){setField(id,hi,'','');return true;}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){setField(id,hi,'Invalid email','err');return false;}setField(id,hi,'✓','ok');return true;}
+
+async function submitCitizen(){
+  const errEl=document.getElementById('form-err'),okEl=document.getElementById('form-ok');
+  errEl.classList.remove('show');okEl.classList.remove('show');
+  if(!vName()||!vPhone()||!vEmail())return;
+  const zone_id=document.getElementById('f-zone').value;
+  if(!zone_id){errEl.textContent='Please select a zone.';errEl.classList.add('show');return;}
+  const body={name:sanitize(document.getElementById('f-name').value),phone:document.getElementById('f-phone').value.trim(),email:document.getElementById('f-email').value.trim()||undefined,zone_id,address:document.getElementById('f-addr').value.trim()||undefined};
+  const url=editingId?`/citizens/${editingId}`:'/citizens';
+  const {ok,data}=editingId?await apiPut(url,body):await apiPost(url,body);
+  if(!ok){errEl.textContent=data.error||'Request failed.';errEl.classList.add('show');return;}
+  okEl.textContent=editingId?'Citizen updated successfully.':'Citizen registered! ID: #'+(data.citizen_id||'');
+  okEl.classList.add('show');toast(okEl.textContent);
+  clearForm();loadCitizens();loadStats();
+}
+function clearForm(){
+  ['f-name','f-phone','f-email','f-addr'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('f-zone').value='';
+  ['name','phone','email'].forEach(f=>setField('f-'+f,'h-'+f,'',''));
+  editingId=null;
+  document.getElementById('form-title').textContent='➕ Register New Citizen';
+  document.getElementById('submit-btn').textContent='✅ Register Citizen';
+  document.getElementById('cancel-btn').style.display='none';
+}
+function cancelEdit(){clearForm();document.getElementById('form-err').classList.remove('show');document.getElementById('form-ok').classList.remove('show');}
+
+// Edit
+function openEdit(id){
+  const row=document.querySelector(`[onclick="openEdit(${id})"]`)?.closest('tr');
+  if(!row)return;
+  const cells=row.querySelectorAll('td');
+  document.getElementById('edit-id').value=id;
+  document.getElementById('e-name').value=cells[0].textContent.trim();
+  document.getElementById('e-phone').value=cells[1].textContent.trim();
+  document.getElementById('e-email').value=cells[2].textContent==='—'?'':cells[2].textContent.trim();
+  document.getElementById('e-addr').value=cells[4].textContent==='—'?'':cells[4].textContent.trim();
+  const zoneName=cells[3].textContent.trim();
+  const ez=document.getElementById('e-zone');
+  ez.innerHTML='<option value="">Select zone…</option>'+zones.map(z=>`<option value="${z.zone_id}">${z.zone_name}</option>`).join('');
+  for(const opt of ez.options)if(opt.text===zoneName)opt.selected=true;
+  document.getElementById('edit-err').classList.remove('show');
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeModal(){document.getElementById('edit-modal').classList.remove('open');}
+async function saveEdit(){
+  const id=document.getElementById('edit-id').value;
+  const errEl=document.getElementById('edit-err');
+  const name=document.getElementById('e-name').value.trim();
+  const phone=document.getElementById('e-phone').value.trim();
+  const email=document.getElementById('e-email').value.trim();
+  const zone_id=document.getElementById('e-zone').value;
+  const address=document.getElementById('e-addr').value.trim();
+  if(!name||!phone||!zone_id){errEl.textContent='Name, phone and zone required.';errEl.classList.add('show');return;}
+  if(!/^\d{10}$/.test(phone)){errEl.textContent='Phone must be 10 digits.';errEl.classList.add('show');return;}
+  const {ok,data}=await apiPut(`/citizens/${id}`,{name,phone,email:email||undefined,zone_id,address:address||undefined});
+  if(!ok){errEl.textContent=data.error||'Update failed.';errEl.classList.add('show');return;}
+  closeModal();toast('Citizen updated successfully.');loadCitizens();loadStats();
+}
+
+// Delete
+function openDelete(id,name){
+  deleteId=id;
+  document.getElementById('confirm-msg').innerHTML=`Delete <strong>${name}</strong>?<br><small style="color:var(--text-sub)">This cannot be undone.</small>`;
+  document.getElementById('confirm-bg').classList.add('open');
+}
+function closeConfirm(){document.getElementById('confirm-bg').classList.remove('open');deleteId=null;}
+async function doDelete(){
+  if(!deleteId)return;
+  const {ok}=await apiDel(`/citizens/${deleteId}`);
+  closeConfirm();
+  if(ok){toast('Citizen deleted.');loadCitizens();loadStats();}
+  else toast('Delete failed.','err');
+}
+
+initPage();
+</script>
+</body>
+</html>

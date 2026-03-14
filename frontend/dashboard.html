@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Dashboard — WasteIQ · PMC</title>
+<link rel="stylesheet" href="theme.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>
+pageInit('dashboard.html','Dashboard','Overview · Pune Municipal Corporation');
+</script>
+<script>
+const pc=document.getElementById('page-content');
+const COLORS=['#22c55e','#4ade80','#16a34a','#86efac','#a3e635'];
+let charts={};
+
+pc.innerHTML=`
+<div class="page-header">
+  <h1>City Overview</h1>
+  <p>Live snapshot of Pune's waste management operations</p>
+</div>
+
+<div class="stat-grid" id="stat-grid">
+  ${[
+    {id:'s-bins',   icon:'🗑', label:'Total Bins',       sub:'across all zones', accent:'#22c55e', ibg:'var(--g50)'},
+    {id:'s-full',   icon:'🔴', label:'Bins Full (>80%)', sub:'need urgent pickup', accent:'#ef4444', ibg:'rgba(239,68,68,.08)'},
+    {id:'s-trucks', icon:'🚛', label:'Active Trucks',    sub:'on the road now',   accent:'#3b82f6', ibg:'rgba(59,130,246,.08)'},
+    {id:'s-citz',   icon:'👥', label:'Registered Citizens', sub:'in database',   accent:'#8b5cf6', ibg:'rgba(139,92,246,.08)'},
+    {id:'s-comp',   icon:'📢', label:'Complaints Today', sub:'filed by citizens', accent:'#f59e0b', ibg:'rgba(245,158,11,.08)'},
+    {id:'s-waste',  icon:'⚖',  label:'Waste Today (kg)', sub:'collected so far', accent:'#22c55e', ibg:'var(--g50)'},
+  ].map(c=>`
+    <div class="stat-card" style="--card-accent:${c.accent}">
+      <div class="card-icon" style="background:${c.ibg}">${c.icon}</div>
+      <div>
+        <div class="card-label">${c.label}</div>
+        <div class="card-val" id="${c.id}">—</div>
+        <div class="card-sub">${c.sub}</div>
+      </div>
+    </div>`).join('')}
+</div>
+
+<div class="section-grid cols-2-1" style="margin-bottom:20px">
+  <div class="box">
+    <div class="box-head"><h3>📊 Waste Collection by Zone</h3><span class="box-sub">Total kg collected</span></div>
+    <div class="chart-container"><canvas id="chart-zone"></canvas></div>
+  </div>
+  <div class="box">
+    <div class="box-head"><h3>📋 Complaints by Status</h3></div>
+    <div class="chart-container"><canvas id="chart-status"></canvas></div>
+  </div>
+</div>
+
+<div class="section-grid cols-2">
+  <div class="box">
+    <div class="box-head"><h3>📈 Daily Waste Generation</h3><span class="box-sub">Last 14 days (kg)</span></div>
+    <div class="chart-container"><canvas id="chart-daily"></canvas></div>
+  </div>
+  <div class="box">
+    <div class="box-head"><h3>📣 Complaints per Zone</h3></div>
+    <div class="chart-container"><canvas id="chart-comp-zone"></canvas></div>
+  </div>
+</div>
+
+<div class="section-grid cols-2" style="margin-top:20px">
+  <div class="box">
+    <div class="box-head"><h3>🚨 Critical Bins</h3><span class="box-sub">Fill level &gt; 80%</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Bin ID</th><th>Zone</th><th>Type</th><th>Fill Level</th><th>Address</th></tr></thead>
+      <tbody id="critical-bins-table"></tbody>
+    </table></div>
+  </div>
+  <div class="box">
+    <div class="box-head"><h3>📋 Recent Complaints</h3></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Name</th><th>Zone</th><th>Type</th><th>Status</th><th>Filed</th></tr></thead>
+      <tbody id="recent-complaints-table"></tbody>
+    </table></div>
+  </div>
+</div>`;
+
+async function loadDashboard(){
+  const {data}=await apiGet('/dashboard');
+  if(!data) return;
+
+  // Stat cards
+  document.getElementById('s-bins').textContent   = fmtNum(data.totalBins);
+  document.getElementById('s-full').textContent   = fmtNum(data.fullBins);
+  document.getElementById('s-trucks').textContent = fmtNum(data.activeTrucks);
+  document.getElementById('s-citz').textContent   = fmtNum(data.totalCitizens);
+  document.getElementById('s-comp').textContent   = fmtNum(data.complaintsToday);
+  document.getElementById('s-waste').textContent  = fmtNum(data.wasteToday);
+
+  const cd=chartDefaults(); applyChartDefaults(cd);
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+
+  // Zone bar chart
+  if(charts.zone) charts.zone.destroy();
+  charts.zone=new Chart(document.getElementById('chart-zone'),{
+    type:'bar',
+    data:{
+      labels:data.wasteByZone.map(z=>z.zone_name),
+      datasets:[{label:'kg collected',data:data.wasteByZone.map(z=>z.total),backgroundColor:COLORS,borderRadius:6,borderSkipped:false}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{color:cd.fontColor}},y:{grid:{color:cd.gridColor},ticks:{color:cd.fontColor},beginAtZero:true}}}
+  });
+
+  // Status doughnut
+  if(charts.status) charts.status.destroy();
+  const statusData=data.complaintsByStatus||[];
+  const statusMap={pending:'#f59e0b',in_progress:'#3b82f6',resolved:'#22c55e'};
+  charts.status=new Chart(document.getElementById('chart-status'),{
+    type:'doughnut',
+    data:{
+      labels:statusData.map(s=>s.status.replace('_',' ')),
+      datasets:[{data:statusData.map(s=>s.total),backgroundColor:statusData.map(s=>statusMap[s.status]||'#9ca3af'),borderWidth:3,borderColor:dark?'#161b22':'#fff'}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+      plugins:{legend:{position:'bottom',labels:{color:cd.fontColor,padding:14,font:{size:12}}}}}
+  });
+
+  // Daily line chart
+  if(charts.daily) charts.daily.destroy();
+  const days=data.dailyWaste||[];
+  charts.daily=new Chart(document.getElementById('chart-daily'),{
+    type:'line',
+    data:{
+      labels:days.map(d=>new Date(d.date+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'})),
+      datasets:[{label:'kg',data:days.map(d=>d.total),borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.1)',tension:.4,fill:true,pointBackgroundColor:'#22c55e',pointRadius:4,pointHoverRadius:6}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{color:cd.fontColor}},y:{grid:{color:cd.gridColor},ticks:{color:cd.fontColor},beginAtZero:true}}}
+  });
+
+  // Complaints zone bar
+  if(charts.compZone) charts.compZone.destroy();
+  charts.compZone=new Chart(document.getElementById('chart-comp-zone'),{
+    type:'bar',
+    data:{
+      labels:data.complaintsByZone.map(z=>z.zone_name),
+      datasets:[{label:'complaints',data:data.complaintsByZone.map(z=>z.total),backgroundColor:'rgba(245,158,11,.7)',borderRadius:6}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{color:cd.fontColor}},y:{grid:{color:cd.gridColor},ticks:{color:cd.fontColor},beginAtZero:true,ticks:{stepSize:1}}}}
+  });
+
+  // Critical bins table
+  const binsRes=await apiGet('/bins');
+  const critical=(binsRes.data||[]).filter(b=>b.fill_level>80).slice(0,6);
+  document.getElementById('critical-bins-table').innerHTML=critical.length
+    ?critical.map(b=>`<tr>
+      <td><strong>#${b.bin_id}</strong></td>
+      <td>${b.zone_name}</td>
+      <td>${statusBadge(b.bin_type)}</td>
+      <td>${fillBar(b.fill_level)}</td>
+      <td class="td-muted">${b.address||'—'}</td>
+    </tr>`).join('')
+    :'<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-sub)">No critical bins 🎉</td></tr>';
+
+  // Recent complaints
+  const compRes=await apiGet('/complaints');
+  const comps=(compRes.data||[]).slice(0,6);
+  document.getElementById('recent-complaints-table').innerHTML=comps.length
+    ?comps.map(c=>`<tr>
+      <td><strong>${c.citizen_name}</strong></td>
+      <td class="td-muted">${c.zone_name||'—'}</td>
+      <td class="td-muted">${(c.complaint_type||'').replace('_',' ')}</td>
+      <td>${statusBadge(c.status)}</td>
+      <td class="td-muted">${fmtDate(c.created_at)}</td>
+    </tr>`).join('')
+    :'<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-sub)">No complaints</td></tr>';
+}
+
+loadDashboard();
+setInterval(loadDashboard,60000);
+</script>
+</body>
+</html>

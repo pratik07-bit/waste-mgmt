@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Complaints — WasteIQ · PMC</title>
+<link rel="stylesheet" href="theme.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.complaint-row-img{width:48px;height:48px;border-radius:6px;object-fit:cover;border:1px solid var(--border);}
+.img-thumb{width:48px;height:48px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;}
+.upload-area{border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:border-color var(--t),background var(--t);}
+.upload-area:hover{border-color:var(--g500);background:var(--g50);}
+.upload-area p{font-size:.83rem;color:var(--text-sub);margin-top:8px;}
+.type-tag{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;font-weight:600;padding:3px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);color:var(--text-mid);}
+</style>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>pageInit('complaints.html','Complaint Management','Citizen Grievances · Status Tracking');</script>
+<script>
+const pc=document.getElementById('page-content');
+let zones=[],allComplaints=[],imgData=null,viewId=null;
+const complaintTypes=['overflow','not_collected','damaged','smell','illegal_dumping','other'];
+const typeLabels={'overflow':'Bin Overflow','not_collected':'Not Collected','damaged':'Bin Damaged','smell':'Bad Smell','illegal_dumping':'Illegal Dumping','other':'Other'};
+const typeEmoji={'overflow':'🗑','not_collected':'🚛','damaged':'🔧','smell':'👃','illegal_dumping':'⚠️','other':'📝'};
+
+pc.innerHTML=`
+<div class="page-header">
+  <h1>Complaint Management</h1>
+  <p>Register citizen complaints and track resolution status</p>
+</div>
+
+<div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(155px,1fr));margin-bottom:20px">
+  <div class="stat-card" style="--card-accent:#f59e0b"><div class="card-icon" style="background:rgba(245,158,11,.08)">📢</div><div><div class="card-label">Total</div><div class="card-val" id="cs-total">—</div></div></div>
+  <div class="stat-card" style="--card-accent:#ef4444"><div class="card-icon" style="background:rgba(239,68,68,.08)">⏳</div><div><div class="card-label">Pending</div><div class="card-val" id="cs-pend">—</div></div></div>
+  <div class="stat-card" style="--card-accent:#3b82f6"><div class="card-icon" style="background:rgba(59,130,246,.08)">🔄</div><div><div class="card-label">In Progress</div><div class="card-val" id="cs-prog">—</div></div></div>
+  <div class="stat-card" style="--card-accent:#22c55e"><div class="card-icon" style="background:var(--g50)">✅</div><div><div class="card-label">Resolved</div><div class="card-val" id="cs-res">—</div></div></div>
+  <div class="stat-card" style="--card-accent:#f59e0b"><div class="card-icon" style="background:rgba(245,158,11,.08)">📅</div><div><div class="card-label">Today</div><div class="card-val" id="cs-today">—</div></div></div>
+</div>
+
+<div class="section-grid cols-2" style="margin-bottom:20px">
+  <!-- File Complaint Form -->
+  <div class="box">
+    <div class="box-head"><h3>📝 File New Complaint</h3></div>
+    <div class="box-body">
+      <div class="alert alert-error" id="form-err"></div>
+      <div class="alert alert-success" id="form-ok"></div>
+      <div class="form-grid cols-2" style="margin-bottom:12px">
+        <div class="fg"><label>Citizen Name *</label><input id="f-name" placeholder="Full name"/></div>
+        <div class="fg"><label>Phone</label><input id="f-phone" placeholder="10-digit" maxlength="10"/></div>
+        <div class="fg"><label>Zone *</label><select id="f-zone"><option value="">Select zone…</option></select></div>
+        <div class="fg"><label>Complaint Type *</label><select id="f-type">
+          <option value="">Select type…</option>
+          ${complaintTypes.map(t=>`<option value="${t}">${typeEmoji[t]} ${typeLabels[t]}</option>`).join('')}
+        </select></div>
+        <div class="fg" style="grid-column:1/-1"><label>Description</label><textarea id="f-desc" placeholder="Describe the problem in detail…" style="min-height:80px"></textarea></div>
+        <div class="fg"><label>Location Latitude</label><input id="f-lat" type="number" step="0.0001" placeholder="e.g. 18.5308"/></div>
+        <div class="fg"><label>Location Longitude</label><input id="f-lng" type="number" step="0.0001" placeholder="e.g. 73.8475"/></div>
+      </div>
+      <div class="form-section-label">📷 Upload Image (Optional)</div>
+      <div class="upload-area" id="upload-area" onclick="document.getElementById('img-input').click()" ondrop="handleDrop(event)" ondragover="event.preventDefault()">
+        <div id="upload-preview" style="font-size:32px">📷</div>
+        <p id="upload-text">Click to upload or drag & drop an image</p>
+        <input type="file" id="img-input" accept="image/*" style="display:none" onchange="handleImage(event)"/>
+      </div>
+      <div class="form-footer">
+        <button class="btn btn-primary" onclick="submitComplaint()">📢 Submit Complaint</button>
+        <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="box" style="flex:1">
+      <div class="box-head"><h3>📊 Status Distribution</h3></div>
+      <div class="chart-container" style="height:200px"><canvas id="chart-status"></canvas></div>
+    </div>
+    <div class="box" style="flex:1">
+      <div class="box-head"><h3>🏷 By Complaint Type</h3></div>
+      <div class="chart-container" style="height:200px"><canvas id="chart-type"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Admin Panel -->
+<div class="box">
+  <div class="box-head">
+    <h3>📋 All Complaints — Admin Panel</h3>
+    <span class="box-sub" id="comp-count">—</span>
+  </div>
+  <div class="filter-bar">
+    <span class="filter-label">Status</span>
+    <select id="flt-status" onchange="applyFilter()">
+      <option value="">All Status</option>
+      <option value="pending">Pending</option>
+      <option value="in_progress">In Progress</option>
+      <option value="resolved">Resolved</option>
+    </select>
+    <span class="filter-label">Zone</span>
+    <select id="flt-zone" onchange="applyFilter()"><option value="">All Zones</option></select>
+    <button class="btn btn-sm btn-secondary" onclick="resetFilter()">Reset</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Zone</th><th>Type</th><th>Description</th><th>Image</th><th>Filed</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="comp-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- View/Edit Modal -->
+<div class="modal-bg" id="view-modal">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-head"><h3>📋 Complaint Details</h3><button class="modal-close" onclick="closeViewModal()">✕</button></div>
+    <div class="modal-body" id="view-content"></div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeViewModal()">Close</button>
+      <button class="btn btn-primary" onclick="saveStatus()">💾 Save Status</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image Preview Modal -->
+<div class="modal-bg" id="img-modal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-head"><h3>📷 Complaint Image</h3><button class="modal-close" onclick="document.getElementById('img-modal').classList.remove('open')">✕</button></div>
+    <div style="padding:16px;text-align:center"><img id="img-preview-full" style="max-width:100%;border-radius:10px;max-height:70vh"/></div>
+  </div>
+</div>`;
+
+let statusChartInst=null,typeChartInst=null;
+
+async function initPage(){
+  const zRes=await apiGet('/zones');
+  zones=zRes.data||[];
+  ['f-zone','flt-zone'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const extra=id==='flt-zone'?'<option value="">All Zones</option>':'<option value="">Select zone…</option>';
+    el.innerHTML=extra+zones.map(z=>`<option value="${z.zone_id}">${z.zone_name}</option>`).join('');
+  });
+  await loadComplaints();
+}
+
+async function loadComplaints(){
+  const status=document.getElementById('flt-status').value;
+  const zone_id=document.getElementById('flt-zone').value;
+  const {data}=await apiGet(`/complaints?status=${status}&zone_id=${zone_id}`);
+  allComplaints=data||[];
+
+  const total=allComplaints.length;
+  const pend=allComplaints.filter(c=>c.status==='pending').length;
+  const prog=allComplaints.filter(c=>c.status==='in_progress').length;
+  const res=allComplaints.filter(c=>c.status==='resolved').length;
+  const today=allComplaints.filter(c=>fmtDate(c.created_at)===fmtDate(new Date().toISOString())).length;
+  document.getElementById('cs-total').textContent=total;
+  document.getElementById('cs-pend').textContent=pend;
+  document.getElementById('cs-prog').textContent=prog;
+  document.getElementById('cs-res').textContent=res;
+  document.getElementById('cs-today').textContent=today;
+  document.getElementById('comp-count').textContent=`${total} complaint${total!==1?'s':''}`;
+
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+  const cd=chartDefaults();applyChartDefaults(cd);
+
+  if(statusChartInst)statusChartInst.destroy();
+  statusChartInst=new Chart(document.getElementById('chart-status'),{
+    type:'doughnut',
+    data:{labels:['Pending','In Progress','Resolved'],datasets:[{data:[pend,prog,res],backgroundColor:['#f59e0b','#3b82f6','#22c55e'],borderWidth:3,borderColor:dark?'#161b22':'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:cd.fontColor,padding:12}}}}
+  });
+
+  const typeCounts={};
+  allComplaints.forEach(c=>{typeCounts[c.complaint_type]=(typeCounts[c.complaint_type]||0)+1;});
+  if(typeChartInst)typeChartInst.destroy();
+  typeChartInst=new Chart(document.getElementById('chart-type'),{
+    type:'bar',
+    data:{
+      labels:Object.keys(typeCounts).map(t=>typeLabels[t]||t),
+      datasets:[{data:Object.values(typeCounts),backgroundColor:'rgba(34,197,94,.7)',borderRadius:5}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:cd.fontColor,font:{size:11}}},y:{grid:{color:cd.gridColor},ticks:{color:cd.fontColor,stepSize:1},beginAtZero:true}}}
+  });
+
+  renderTable();
+}
+
+function applyFilter(){loadComplaints();}
+function resetFilter(){document.getElementById('flt-status').value='';document.getElementById('flt-zone').value='';loadComplaints();}
+
+function renderTable(){
+  document.getElementById('comp-tbody').innerHTML=allComplaints.length
+    ?allComplaints.map(c=>`<tr>
+      <td><strong>#${c.complaint_id}</strong></td>
+      <td>${c.citizen_name}</td>
+      <td class="td-muted">${c.zone_name||'—'}</td>
+      <td><span class="type-tag">${typeEmoji[c.complaint_type]||'📝'} ${typeLabels[c.complaint_type]||c.complaint_type}</span></td>
+      <td class="td-muted" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.description||''}">${c.description||'—'}</td>
+      <td>${c.image_data
+        ?`<div class="img-thumb" onclick="viewImg('${c.image_data}')">🖼</div>`
+        :`<span class="td-muted">—</span>`}</td>
+      <td class="td-muted">${fmtDate(c.created_at)}</td>
+      <td>${statusBadge(c.status)}</td>
+      <td><button class="btn btn-sm btn-warning" onclick="openViewModal(${c.complaint_id})">✏️ Manage</button></td>
+    </tr>`).join('')
+    :`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📋</div><p>No complaints found.</p></div></td></tr>`;
+}
+
+// View/Edit modal
+function openViewModal(id){
+  viewId=id;
+  const c=allComplaints.find(x=>x.complaint_id===id);if(!c)return;
+  document.getElementById('view-content').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div><div class="form-section-label">Citizen Name</div><strong>${c.citizen_name}</strong></div>
+      <div><div class="form-section-label">Phone</div>${c.phone||'—'}</div>
+      <div><div class="form-section-label">Zone</div>${c.zone_name||'—'}</div>
+      <div><div class="form-section-label">Type</div><span class="type-tag">${typeEmoji[c.complaint_type]||'📝'} ${typeLabels[c.complaint_type]||c.complaint_type}</span></div>
+      <div style="grid-column:1/-1"><div class="form-section-label">Description</div><p style="font-size:.85rem;color:var(--text-mid);line-height:1.6">${c.description||'No description provided.'}</p></div>
+      ${c.image_data?`<div style="grid-column:1/-1"><div class="form-section-label">Image</div><img src="${c.image_data}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--border)"/></div>`:''}
+      <div><div class="form-section-label">Filed</div>${fmtDateTime(c.created_at)}</div>
+      ${c.resolved_at?`<div><div class="form-section-label">Resolved</div>${fmtDateTime(c.resolved_at)}</div>`:''}
+    </div>
+    <div class="form-grid cols-2">
+      <div class="fg"><label>Update Status</label>
+        <select id="vm-status">
+          <option value="pending" ${c.status==='pending'?'selected':''}>⏳ Pending</option>
+          <option value="in_progress" ${c.status==='in_progress'?'selected':''}>🔄 In Progress</option>
+          <option value="resolved" ${c.status==='resolved'?'selected':''}>✅ Resolved</option>
+        </select>
+      </div>
+      <div class="fg"><label>Admin Notes</label><input id="vm-notes" value="${c.admin_notes||''}" placeholder="Internal notes…"/></div>
+    </div>
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn btn-sm btn-danger" onclick="doDelete(${c.complaint_id})">🗑 Delete Complaint</button>
+    </div>`;
+  document.getElementById('view-modal').classList.add('open');
+}
+function closeViewModal(){document.getElementById('view-modal').classList.remove('open');viewId=null;}
+async function saveStatus(){
+  const status=document.getElementById('vm-status').value;
+  const admin_notes=document.getElementById('vm-notes').value.trim();
+  const {ok}=await apiPut(`/complaints/${viewId}`,{status,admin_notes});
+  if(ok){closeViewModal();toast('Complaint status updated.');loadComplaints();}
+  else toast('Update failed.','err');
+}
+async function doDelete(id){
+  if(!confirm('Delete this complaint permanently?'))return;
+  const {ok}=await apiDel(`/complaints/${id}`);
+  if(ok){closeViewModal();toast('Complaint deleted.');loadComplaints();}
+  else toast('Delete failed.','err');
+}
+
+function viewImg(data){
+  document.getElementById('img-preview-full').src=data;
+  document.getElementById('img-modal').classList.add('open');
+}
+
+// Image upload
+function handleImage(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    imgData=ev.target.result;
+    document.getElementById('upload-preview').innerHTML=`<img src="${imgData}" style="max-height:80px;border-radius:8px"/>`;
+    document.getElementById('upload-text').textContent='Image ready — click to change';
+  };
+  reader.readAsDataURL(file);
+}
+function handleDrop(e){e.preventDefault();const file=e.dataTransfer.files[0];if(file){document.getElementById('img-input').files=e.dataTransfer.files;handleImage({target:{files:e.dataTransfer.files}});}}
+
+// Submit
+async function submitComplaint(){
+  const errEl=document.getElementById('form-err'),okEl=document.getElementById('form-ok');
+  errEl.classList.remove('show');okEl.classList.remove('show');
+  const citizen_name=document.getElementById('f-name').value.trim();
+  const phone=document.getElementById('f-phone').value.trim();
+  const zone_id=document.getElementById('f-zone').value;
+  const complaint_type=document.getElementById('f-type').value;
+  const description=document.getElementById('f-desc').value.trim();
+  const lat=document.getElementById('f-lat').value;
+  const lng=document.getElementById('f-lng').value;
+  if(!citizen_name||!zone_id||!complaint_type){errEl.textContent='Name, zone and complaint type are required.';errEl.classList.add('show');return;}
+  if(phone&&!/^\d{10}$/.test(phone)){errEl.textContent='Phone must be 10 digits.';errEl.classList.add('show');return;}
+  const body={citizen_name:sanitize(citizen_name),phone:phone||undefined,zone_id,complaint_type,description:sanitize(description)||undefined,location_lat:lat?parseFloat(lat):undefined,location_lng:lng?parseFloat(lng):undefined,image_data:imgData||undefined};
+  const {ok,data}=await apiPost('/complaints',body);
+  if(!ok){errEl.textContent=data.error||'Submission failed.';errEl.classList.add('show');return;}
+  okEl.textContent=`Complaint #${data.complaint_id} filed successfully.`;okEl.classList.add('show');
+  toast('Complaint submitted!');clearForm();loadComplaints();
+}
+function clearForm(){
+  ['f-name','f-phone','f-desc','f-lat','f-lng'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('f-zone').value='';document.getElementById('f-type').value='';
+  imgData=null;document.getElementById('upload-preview').innerHTML='📷';document.getElementById('upload-text').textContent='Click to upload or drag & drop an image';
+}
+
+initPage();
+</script>
+</body>
+</html>

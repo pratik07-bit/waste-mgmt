@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Smart Bins — WasteIQ · PMC</title>
+<link rel="stylesheet" href="theme.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>pageInit('bins.html','Smart Bin Monitoring','City Infrastructure · Real-time Status');</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const pc=document.getElementById('page-content');
+let allBins=[],zones=[],binMap=null,binMapInit=false;
+
+pc.innerHTML=`
+<div class="page-header">
+  <h1>Smart Bin Monitoring</h1>
+  <p>Real-time fill levels and status of all waste bins across Pune</p>
+</div>
+
+<div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:20px">
+  <div class="stat-card" style="--card-accent:#22c55e"><div class="card-icon">🗑</div><div><div class="card-label">Total Bins</div><div class="card-val" id="bs-total">—</div></div></div>
+  <div class="stat-card" style="--card-accent:#22c55e"><div class="card-icon" style="background:var(--g50)">🟢</div><div><div class="card-label">Empty (&lt;50%)</div><div class="card-val" id="bs-low">—</div></div></div>
+  <div class="stat-card" style="--card-accent:#f59e0b"><div class="card-icon" style="background:rgba(245,158,11,.08)">🟡</div><div><div class="card-label">Medium (50–80%)</div><div class="card-val" id="bs-med">—</div></div></div>
+  <div class="stat-card" style="--card-accent:#ef4444"><div class="card-icon" style="background:rgba(239,68,68,.08)">🔴</div><div><div class="card-label">Critical (&gt;80%)</div><div class="card-val" id="bs-high">—</div></div></div>
+</div>
+
+<div class="box" style="margin-bottom:20px">
+  <div class="box-head">
+    <h3>📍 Bin Locations — Live Map</h3>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:.73rem;color:var(--text-sub)">🟢 Empty &nbsp; 🟡 Medium &nbsp; 🔴 Critical</span>
+      <button class="btn btn-sm btn-secondary" onclick="refreshMap()">↺ Refresh Map</button>
+    </div>
+  </div>
+  <div id="bin-map" style="height:380px"></div>
+</div>
+
+<div class="box">
+  <div class="box-head"><h3>📋 All Bins — Table View</h3><button class="btn btn-sm btn-primary" onclick="openAddBin()">➕ Add Bin</button></div>
+  <div class="filter-bar">
+    <span class="filter-label">Zone</span>
+    <select id="flt-zone" onchange="renderTable()"><option value="">All Zones</option></select>
+    <span class="filter-label">Status</span>
+    <select id="flt-status" onchange="renderTable()">
+      <option value="">All</option>
+      <option value="low">Empty (&lt;50%)</option>
+      <option value="medium">Medium (50–80%)</option>
+      <option value="critical">Critical (&gt;80%)</option>
+    </select>
+    <span class="filter-label">Type</span>
+    <select id="flt-type" onchange="renderTable()">
+      <option value="">All Types</option>
+      <option value="general">General</option>
+      <option value="recyclable">Recyclable</option>
+      <option value="organic">Organic</option>
+      <option value="hazardous">Hazardous</option>
+    </select>
+    <button class="btn btn-sm btn-secondary" onclick="resetFilters()">Reset</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Bin ID</th><th>Zone</th><th>Type</th><th>Address</th><th>Fill Level</th><th>Status</th><th>Last Collected</th><th>Actions</th></tr></thead>
+      <tbody id="bin-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Update Fill Modal -->
+<div class="modal-bg" id="fill-modal">
+  <div class="modal">
+    <div class="modal-head"><h3>📊 Update Bin Fill Level</h3><button class="modal-close" onclick="closeFillModal()">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:.85rem;color:var(--text-mid);margin-bottom:16px">Bin ID: <strong id="fill-bin-id"></strong></p>
+      <div class="fg"><label>Fill Level (%)</label><input type="range" id="fill-slider" min="0" max="100" value="50" oninput="document.getElementById('fill-pct-display').textContent=this.value+'%'" style="width:100%;margin-bottom:8px"/><div style="text-align:center;font-size:1.5rem;font-weight:700;color:var(--g600)" id="fill-pct-display">50%</div></div>
+      <div style="display:flex;justify-content:space-around;margin-top:14px">
+        <button class="btn btn-sm btn-secondary" onclick="setFill(0)">0% Empty</button>
+        <button class="btn btn-sm btn-warning" onclick="setFill(50)">50%</button>
+        <button class="btn btn-sm btn-danger" onclick="setFill(100)">100% Full</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeFillModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveFillLevel()">Update Fill Level</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Bin Modal -->
+<div class="modal-bg" id="add-bin-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-head"><h3>➕ Add New Bin</h3><button class="modal-close" onclick="closeAddModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="alert alert-error" id="add-err"></div>
+      <div class="form-grid cols-2">
+        <div class="fg"><label>Zone *</label><select id="ab-zone"></select></div>
+        <div class="fg"><label>Bin Type *</label><select id="ab-type"><option value="general">General</option><option value="recyclable">Recyclable</option><option value="organic">Organic</option><option value="hazardous">Hazardous</option></select></div>
+        <div class="fg"><label>Latitude *</label><input id="ab-lat" placeholder="e.g. 18.5308" type="number" step="0.0001"/></div>
+        <div class="fg"><label>Longitude *</label><input id="ab-lng" placeholder="e.g. 73.8475" type="number" step="0.0001"/></div>
+        <div class="fg" style="grid-column:1/-1"><label>Address</label><input id="ab-addr" placeholder="Street or landmark"/></div>
+        <div class="fg"><label>Capacity (kg)</label><input id="ab-cap" type="number" value="100"/></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewBin()">Add Bin</button>
+    </div>
+  </div>
+</div>`;
+
+async function initPage(){
+  const zRes=await apiGet('/zones');
+  zones=zRes.data||[];
+  ['flt-zone','ab-zone'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const pfx=id.startsWith('flt')?'<option value="">All Zones</option>':'<option value="">Select…</option>';
+    el.innerHTML=pfx+zones.map(z=>`<option value="${z.zone_id}">${z.zone_name}</option>`).join('');
+  });
+  await loadBins();
+  initMap();
+}
+
+async function loadBins(){
+  const {data}=await apiGet('/bins');
+  allBins=data||[];
+  const low=allBins.filter(b=>b.fill_level<=50).length;
+  const med=allBins.filter(b=>b.fill_level>50&&b.fill_level<=80).length;
+  const high=allBins.filter(b=>b.fill_level>80).length;
+  document.getElementById('bs-total').textContent=allBins.length;
+  document.getElementById('bs-low').textContent=low;
+  document.getElementById('bs-med').textContent=med;
+  document.getElementById('bs-high').textContent=high;
+  renderTable();
+  if(binMapInit)refreshMap();
+}
+
+function getFiltered(){
+  let bins=[...allBins];
+  const zone=document.getElementById('flt-zone').value;
+  const status=document.getElementById('flt-status').value;
+  const type=document.getElementById('flt-type').value;
+  if(zone)bins=bins.filter(b=>String(b.zone_id)===String(zone));
+  if(status==='low')bins=bins.filter(b=>b.fill_level<=50);
+  else if(status==='medium')bins=bins.filter(b=>b.fill_level>50&&b.fill_level<=80);
+  else if(status==='critical')bins=bins.filter(b=>b.fill_level>80);
+  if(type)bins=bins.filter(b=>b.bin_type===type);
+  return bins;
+}
+function resetFilters(){['flt-zone','flt-status','flt-type'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});renderTable();}
+
+function fillStatusLabel(pct){
+  if(pct>80)return '<span class="badge badge-red">🔴 Critical</span>';
+  if(pct>50)return '<span class="badge badge-amber">🟡 Medium</span>';
+  return '<span class="badge badge-green">🟢 Empty</span>';
+}
+
+function renderTable(){
+  const bins=getFiltered();
+  document.getElementById('bin-tbody').innerHTML=bins.length
+    ?bins.map(b=>`<tr>
+      <td><strong>#${b.bin_id}</strong></td>
+      <td class="td-muted">${b.zone_name}</td>
+      <td>${statusBadge(b.bin_type)}</td>
+      <td class="td-muted" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.address||'—'}</td>
+      <td>${fillBar(b.fill_level)}</td>
+      <td>${fillStatusLabel(b.fill_level)}</td>
+      <td class="td-muted">${fmtDateTime(b.last_collected)}</td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-warning" onclick="openFillModal(${b.bin_id},${b.fill_level})">📊 Fill</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteBin(${b.bin_id})">🗑</button>
+      </div></td>
+    </tr>`).join('')
+    :'<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🗑</div><p>No bins match the filter.</p></div></td></tr>';
+}
+
+// Map
+function initMap(){
+  binMap=L.map('bin-map').setView([18.52,73.87],13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(binMap);
+  binMapInit=true;
+  refreshMap();
+}
+
+function refreshMap(){
+  if(!binMap)return;
+  binMap.eachLayer(l=>{if(l instanceof L.Marker)binMap.removeLayer(l);});
+  allBins.forEach(b=>{
+    const col=b.fill_level>80?'#ef4444':b.fill_level>50?'#f59e0b':'#22c55e';
+    const size=b.fill_level>80?22:b.fill_level>50?18:15;
+    const icon=L.divIcon({className:'',html:`<div style="width:${size}px;height:${size}px;border-radius:50%;background:${col};border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3)"></div>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});
+    L.marker([b.location_lat,b.location_lng],{icon}).addTo(binMap)
+     .bindPopup(`<div class="popup-title">Bin #${b.bin_id} — ${b.bin_type}</div>
+       <div class="popup-row"><span>Zone</span><strong>${b.zone_name}</strong></div>
+       <div class="popup-row"><span>Fill Level</span><strong style="color:${col}">${b.fill_level}%</strong></div>
+       <div class="popup-row"><span>Address</span><span>${b.address||'—'}</span></div>
+       <div class="popup-row"><span>Last Collected</span><span>${fmtDateTime(b.last_collected)}</span></div>`);
+  });
+}
+
+// Fill modal
+let fillBinId=null;
+function openFillModal(id,pct){
+  fillBinId=id;
+  document.getElementById('fill-bin-id').textContent=id;
+  document.getElementById('fill-slider').value=pct;
+  document.getElementById('fill-pct-display').textContent=pct+'%';
+  document.getElementById('fill-modal').classList.add('open');
+}
+function closeFillModal(){document.getElementById('fill-modal').classList.remove('open');fillBinId=null;}
+function setFill(v){document.getElementById('fill-slider').value=v;document.getElementById('fill-pct-display').textContent=v+'%';}
+async function saveFillLevel(){
+  const pct=parseInt(document.getElementById('fill-slider').value);
+  const {ok}=await apiPut(`/bins/${fillBinId}`,{fill_level:pct});
+  if(ok){closeFillModal();toast(`Bin #${fillBinId} updated to ${pct}%`);loadBins();}
+  else toast('Update failed.','err');
+}
+
+// Add bin modal
+function openAddBin(){document.getElementById('add-bin-modal').classList.add('open');}
+function closeAddModal(){document.getElementById('add-bin-modal').classList.remove('open');}
+async function saveNewBin(){
+  const errEl=document.getElementById('add-err');errEl.classList.remove('show');
+  const zone_id=document.getElementById('ab-zone').value;
+  const bin_type=document.getElementById('ab-type').value;
+  const lat=document.getElementById('ab-lat').value;
+  const lng=document.getElementById('ab-lng').value;
+  const address=document.getElementById('ab-addr').value.trim();
+  const cap=document.getElementById('ab-cap').value||100;
+  if(!zone_id||!lat||!lng){errEl.textContent='Zone, latitude and longitude are required.';errEl.classList.add('show');return;}
+  const {ok,data}=await apiPost('/bins',{zone_id,bin_type,location_lat:parseFloat(lat),location_lng:parseFloat(lng),address,capacity_kg:parseFloat(cap)});
+  if(!ok){errEl.textContent=data.error||'Failed.';errEl.classList.add('show');return;}
+  closeAddModal();toast(`Bin #${data.bin_id} added.`);loadBins();
+}
+
+async function deleteBin(id){
+  if(!confirm(`Delete Bin #${id}? This cannot be undone.`))return;
+  const {ok}=await apiDel(`/bins/${id}`);
+  if(ok){toast(`Bin #${id} deleted.`);loadBins();}else toast('Delete failed.','err');
+}
+
+initPage();
+</script>
+</body>
+</html>

@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Smart Waste Management System — Pune Municipal Corporation</title>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green-dark:   #1a3d2b;
+    --green-mid:    #2d6a4f;
+    --green-light:  #40916c;
+    --green-pale:   #d8f3dc;
+    --green-faint:  #f0faf2;
+    --amber:        #b5460f;
+    --amber-light:  #fff3e0;
+    --red:          #8b0000;
+    --red-light:    #ffeaea;
+    --gray-dark:    #1c1c1c;
+    --gray-mid:     #4a4a4a;
+    --gray-light:   #9a9a9a;
+    --gray-rule:    #d0d0c8;
+    --gray-bg:      #f7f6f2;
+    --white:        #ffffff;
+    --border:       1px solid var(--gray-rule);
+    --serif:        'EB Garamond', Georgia, serif;
+    --sans:         'Source Sans 3', Helvetica, sans-serif;
+  }
+
+  html { font-size: 15px; }
+  body {
+    font-family: var(--sans);
+    color: var(--gray-dark);
+    background: var(--gray-bg);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  .site-header {
+    background: var(--green-dark);
+    border-bottom: 3px solid var(--green-light);
+    padding: 0;
+  }
+  .header-top {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 14px 32px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .header-emblem {
+    width: 52px; height: 52px;
+    background: var(--white);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    flex-shrink: 0;
+  }
+  .header-title h1 {
+    font-family: var(--serif);
+    font-size: 1.55rem;
+    font-weight: 500;
+    color: var(--white);
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+  }
+  .header-title p {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.65);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .header-meta {
+    margin-left: auto;
+    text-align: right;
+    color: rgba(255,255,255,0.6);
+    font-size: 0.78rem;
+    line-height: 1.6;
+  }
+  .header-meta strong { color: rgba(255,255,255,0.9); font-weight: 500; }
+
+  /* ── NAV ── */
+  nav {
+    display: flex;
+    padding: 0 32px;
+    gap: 0;
+  }
+  nav button {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.65);
+    font-family: var(--sans);
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 10px 18px;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  nav button:hover { color: rgba(255,255,255,0.9); }
+  nav button.active {
+    color: var(--white);
+    border-bottom-color: #74c69d;
+  }
+
+  /* ── LAYOUT ── */
+  .page { display: none; padding: 28px 32px 48px; max-width: 1280px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  .page-heading {
+    font-family: var(--serif);
+    font-size: 1.7rem;
+    font-weight: 500;
+    color: var(--green-dark);
+    padding-bottom: 10px;
+    border-bottom: var(--border);
+    margin-bottom: 24px;
+  }
+  .page-heading span {
+    font-family: var(--sans);
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: var(--gray-light);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* ── STAT CARDS ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--white);
+    border: var(--border);
+    border-top: 3px solid var(--green-mid);
+    padding: 18px 20px;
+  }
+  .stat-card.alert { border-top-color: var(--red); }
+  .stat-card.warn  { border-top-color: var(--amber); }
+  .stat-card label {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gray-light);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .stat-card .value {
+    font-family: var(--serif);
+    font-size: 2.2rem;
+    font-weight: 500;
+    color: var(--gray-dark);
+    line-height: 1;
+  }
+  .stat-card .sub {
+    font-size: 0.78rem;
+    color: var(--gray-light);
+    margin-top: 4px;
+  }
+
+  /* ── TWO COLUMN ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── SECTION BOX ── */
+  .box {
+    background: var(--white);
+    border: var(--border);
+  }
+  .box-header {
+    padding: 14px 20px;
+    border-bottom: var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fbfaf7;
+  }
+  .box-header h3 {
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--green-dark);
+  }
+  .box-header .count {
+    font-size: 0.75rem;
+    color: var(--gray-light);
+    letter-spacing: 0.04em;
+  }
+
+  /* ── TABLES ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+  thead th {
+    background: #f2f1ec;
+    padding: 9px 14px;
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    border-bottom: 2px solid var(--gray-rule);
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--green-faint); }
+  tbody td { padding: 10px 14px; color: var(--gray-dark); vertical-align: middle; }
+
+  /* ── FILL BAR ── */
+  .fill-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .fill-bar {
+    width: 80px; height: 8px;
+    background: #e8e8e2;
+    border-radius: 0;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .fill-bar-inner {
+    height: 100%;
+    transition: width 0.3s;
+  }
+  .fill-low    { background: var(--green-light); }
+  .fill-mid    { background: var(--amber); }
+  .fill-high   { background: var(--red); }
+  .fill-pct { font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+
+  /* ── BADGES ── */
+  .badge {
+    display: inline-block;
+    padding: 2px 9px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid;
+  }
+  .badge-open      { color: var(--red);   border-color: var(--red);         background: var(--red-light); }
+  .badge-progress  { color: #7a4f00;       border-color: #e5a000;            background: var(--amber-light); }
+  .badge-resolved  { color: var(--green-mid); border-color: var(--green-mid); background: var(--green-pale); }
+  .badge-active    { color: var(--green-mid); border-color: var(--green-mid); background: var(--green-pale); }
+  .badge-inactive  { color: var(--gray-mid);  border-color: var(--gray-rule);  background: #f5f5f2; }
+  .badge-general   { color: #444; border-color: #bbb; background: #f5f5f2; }
+  .badge-recyclable{ color: #1a5276; border-color: #5dade2; background: #ebf5fb; }
+  .badge-organic   { color: #1e6e3b; border-color: var(--green-light); background: var(--green-pale); }
+  .badge-hazardous { color: #7b0000; border-color: #c0392b; background: #fef0f0; }
+
+  /* ── FORMS ── */
+  .form-section { padding: 20px; }
+  .form-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 150px; }
+  .form-group label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+  }
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    border: var(--border);
+    border-radius: 0;
+    padding: 8px 10px;
+    font-family: var(--sans);
+    font-size: 0.88rem;
+    color: var(--gray-dark);
+    background: var(--white);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    border-color: var(--green-mid);
+    box-shadow: 0 0 0 2px rgba(45,106,79,0.08);
+  }
+  .form-group textarea { min-height: 70px; resize: vertical; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    padding: 8px 20px;
+    border: none;
+    font-family: var(--sans);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .btn-primary { background: var(--green-mid); color: var(--white); }
+  .btn-primary:hover { background: var(--green-dark); }
+  .btn-danger  { background: var(--red); color: var(--white); font-size: 0.72rem; padding: 5px 12px; }
+  .btn-danger:hover { opacity: 0.85; }
+  .btn-sm      { padding: 4px 10px; font-size: 0.72rem; }
+  .btn-warn    { background: var(--amber); color: var(--white); font-size: 0.72rem; padding: 5px 12px; }
+
+  .form-actions { display: flex; justify-content: flex-end; padding: 0 20px 20px; }
+
+  /* ── DIVIDER ROW ── */
+  .section-divider {
+    height: 1px;
+    background: var(--gray-rule);
+    margin: 28px 0;
+  }
+
+  /* ── ALERT BAR ── */
+  .alert-bar {
+    background: var(--red-light);
+    border-left: 4px solid var(--red);
+    padding: 10px 16px;
+    margin-bottom: 20px;
+    font-size: 0.85rem;
+    color: var(--red);
+    display: none;
+  }
+  .alert-bar.show { display: block; }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed;
+    bottom: 28px; right: 28px;
+    background: var(--green-dark);
+    color: var(--white);
+    padding: 12px 22px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-left: 4px solid #74c69d;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 999;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ── SCHEDULE GRID ── */
+  .schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--gray-rule);
+    border: var(--border);
+  }
+  .schedule-day {
+    background: var(--white);
+    padding: 12px 10px;
+    min-height: 100px;
+  }
+  .schedule-day-header {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    border-bottom: 2px solid var(--green-pale);
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+  }
+  .schedule-item {
+    background: var(--green-faint);
+    border-left: 3px solid var(--green-mid);
+    padding: 4px 7px;
+    font-size: 0.75rem;
+    margin-bottom: 5px;
+    color: var(--green-dark);
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 0.75rem;
+    color: var(--gray-light);
+    border-top: var(--border);
+    margin-top: 40px;
+    letter-spacing: 0.04em;
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-top">
+    <div class="header-emblem">♻️</div>
+    <div class="header-title">
+      <h1>Smart Waste Management System</h1>
+      <p>Pune Municipal Corporation — Solid Waste Management Department</p>
+    </div>
+    <div class="header-meta">
+      <strong id="clock">--:--:--</strong><br>
+      <span id="today-date"></span>
+    </div>
+  </div>
+  <nav>
+    <button class="active" onclick="showPage('dashboard', this)">Dashboard</button>
+    <button onclick="showPage('bins', this)">Bins</button>
+    <button onclick="showPage('collectors', this)">Collectors</button>
+    <button onclick="showPage('complaints', this)">Complaints</button>
+    <button onclick="showPage('logs', this)">Collection Logs</button>
+    <button onclick="showPage('schedule', this)">Schedule</button>
+    <button onclick="showPage('citizens', this)">Citizens</button>
+  </nav>
+</header>
+
+<!-- ══ DASHBOARD ═════════════════════════════════════════════════════ -->
+<div id="page-dashboard" class="page active">
+  <div class="page-heading">
+    <span>Overview</span>
+    Municipal Waste Operations Dashboard
+  </div>
+
+  <div id="alert-critical" class="alert-bar">
+    ⚠ Critical Alert: One or more bins have exceeded 80% capacity and require immediate collection.
+  </div>
+
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card"><label>Total Bins</label><div class="value" id="s-bins">—</div><div class="sub">across all zones</div></div>
+    <div class="stat-card alert"><label>Critical Bins</label><div class="value" id="s-critical">—</div><div class="sub">&gt;80% capacity</div></div>
+    <div class="stat-card warn"><label>Open Complaints</label><div class="value" id="s-complaints">—</div><div class="sub">awaiting resolution</div></div>
+    <div class="stat-card"><label>Active Collectors</label><div class="value" id="s-collectors">—</div><div class="sub">on duty</div></div>
+    <div class="stat-card"><label>Total Collections</label><div class="value" id="s-collections">—</div><div class="sub">all time</div></div>
+    <div class="stat-card"><label>Waste Collected</label><div class="value" id="s-weight">—</div><div class="sub">kg total</div></div>
+  </div>
+
+  <div class="two-col">
+    <div class="box">
+      <div class="box-header"><h3>Critical Bins — Urgent Pickup Required</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Bin ID</th><th>Zone</th><th>Type</th><th>Fill Level</th></tr></thead>
+          <tbody id="critical-bins-table"><tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="box">
+      <div class="box-header"><h3>Recent Complaints</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Zone</th><th>Citizen</th><th>Status</th></tr></thead>
+          <tbody id="recent-complaints-table"><tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BINS ══════════════════════════════════════════════════════════ -->
+<div id="page-bins" class="page">
+  <div class="page-heading">
+    <span>Bins Registry</span>
+    Waste Bin Management
+  </div>
+  <div class="box" style="margin-bottom:24px">
+    <div class="box-header"><h3>Register New Bin</h3></div>
+    <div class="form-section">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Zone</label>
+          <select id="bin-zone"></select>
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="bin-type">
+            <option value="general">General</option>
+            <option value="recyclable">Recyclable</option>
+            <option value="organic">Organic</option>
+            <option value="hazardous">Hazardous</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Latitude</label>
+          <input type="number" id="bin-lat" placeholder="18.5300" step="0.0001"/>
+        </div>
+        <div class="form-group">
+          <label>Longitude</label>
+          <input type="number" id="bin-lng" placeholder="73.8478" step="0.0001"/>
+        </div>
+        <div class="form-group">
+          <label>Initial Fill %</label>
+          <input type="number" id="bin-fill" placeholder="0" min="0" max="100"/>
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="addBin()">Register Bin</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="box-header"><h3>All Bins</h3><span class="count" id="bin-count"></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Bin ID</th><th>Zone</th><th>Type</th><th>Fill Level</th>
+            <th>Coordinates</th><th>Last Updated</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="bins-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COLLECTORS ════════════════════════════════════════════════════ -->
+<div id="page-collectors" class="page">
+  <div class="page-heading">
+    <span>Personnel Registry</span>
+    Waste Collectors
+  </div>
+  <div class="box" style="margin-bottom:24px">
+    <div class="box-header"><h3>Enroll New Collector</h3></div>
+    <div class="form-section">
+      <div class="form-row">
+        <div class="form-group"><label>Full Name</label><input type="text" id="col-name" placeholder="Name"/></div>
+        <div class="form-group"><label>Phone</label><input type="text" id="col-phone" placeholder="10-digit number"/></div>
+        <div class="form-group"><label>Vehicle No.</label><input type="text" id="col-vehicle" placeholder="MH12AB1234"/></div>
+        <div class="form-group"><label>Zone</label><select id="col-zone"></select></div>
+        <div class="form-group"><label>Joining Date</label><input type="date" id="col-date"/></div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="addCollector()">Enroll Collector</button>
+    </div>
+  </div>
+  <div class="box">
+    <div class="box-header"><h3>Collector Roster</h3></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Vehicle</th><th>Zone</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="collectors-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMPLAINTS ════════════════════════════════════════════════════ -->
+<div id="page-complaints" class="page">
+  <div class="page-heading">
+    <span>Grievance Management</span>
+    Citizen Complaints
+  </div>
+  <div class="box" style="margin-bottom:24px">
+    <div class="box-header"><h3>File New Complaint</h3></div>
+    <div class="form-section">
+      <div class="form-row">
+        <div class="form-group"><label>Citizen</label><select id="cmp-citizen"></select></div>
+        <div class="form-group"><label>Bin</label><select id="cmp-bin"></select></div>
+        <div class="form-group" style="flex:2"><label>Description</label><textarea id="cmp-desc" placeholder="Describe the issue…"></textarea></div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="addComplaint()">File Complaint</button>
+    </div>
+  </div>
+  <div class="box">
+    <div class="box-header"><h3>All Complaints</h3></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Citizen</th><th>Zone</th><th>Bin Type</th><th>Description</th><th>Filed On</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="complaints-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COLLECTION LOGS ════════════════════════════════════════════════ -->
+<div id="page-logs" class="page">
+  <div class="page-heading">
+    <span>Activity Records</span>
+    Collection Logs
+  </div>
+  <div class="box" style="margin-bottom:24px">
+    <div class="box-header"><h3>Log New Collection</h3></div>
+    <div class="form-section">
+      <div class="form-row">
+        <div class="form-group"><label>Bin</label><select id="log-bin"></select></div>
+        <div class="form-group"><label>Collector</label><select id="log-collector"></select></div>
+        <div class="form-group"><label>Weight (kg)</label><input type="number" id="log-weight" placeholder="45.5" step="0.1"/></div>
+        <div class="form-group">
+          <label>Waste Type</label>
+          <select id="log-type">
+            <option value="general">General</option>
+            <option value="recyclable">Recyclable</option>
+            <option value="organic">Organic</option>
+            <option value="hazardous">Hazardous</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="addLog()">Log Collection</button>
+    </div>
+  </div>
+  <div class="box">
+    <div class="box-header"><h3>Recent Collections</h3></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Log ID</th><th>Bin ID</th><th>Zone</th><th>Bin Type</th><th>Collector</th><th>Weight (kg)</th><th>Collected At</th></tr></thead>
+        <tbody id="logs-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCHEDULE ═══════════════════════════════════════════════════════ -->
+<div id="page-schedule" class="page">
+  <div class="page-heading">
+    <span>Operations</span>
+    Weekly Pickup Schedule
+  </div>
+  <div class="schedule-grid" id="schedule-grid">
+    <div class="schedule-day"><div class="schedule-day-header">Mon</div></div>
+    <div class="schedule-day"><div class="schedule-day-header">Tue</div></div>
+    <div class="schedule-day"><div class="schedule-day-header">Wed</div></div>
+    <div class="schedule-day"><div class="schedule-day-header">Thu</div></div>
+    <div class="schedule-day"><div class="schedule-day-header">Fri</div></div>
+    <div class="schedule-day"><div class="schedule-day-header">Sat</div></div>
+    <div class="schedule-day"><div class="schedule-day-header">Sun</div></div>
+  </div>
+  <div style="margin-top:28px;" class="box">
+    <div class="box-header"><h3>Schedule Table</h3></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Zone</th><th>Collector</th><th>Day</th><th>Time</th></tr></thead>
+        <tbody id="schedule-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CITIZENS ═══════════════════════════════════════════════════════ -->
+<div id="page-citizens" class="page">
+  <div class="page-heading">
+    <span>Registry</span>
+    Citizen Database
+  </div>
+  <div class="box" style="margin-bottom:24px">
+    <div class="box-header"><h3>Register New Citizen</h3></div>
+    <div class="form-section">
+      <div class="form-row">
+        <div class="form-group"><label>Full Name</label><input type="text" id="cit-name" placeholder="Full name"/></div>
+        <div class="form-group"><label>Phone</label><input type="text" id="cit-phone" placeholder="10-digit"/></div>
+        <div class="form-group"><label>Email</label><input type="email" id="cit-email" placeholder="email@example.com"/></div>
+        <div class="form-group"><label>Zone</label><select id="cit-zone"></select></div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="addCitizen()">Register</button>
+    </div>
+  </div>
+  <div class="box">
+    <div class="box-header"><h3>Registered Citizens</h3></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Zone</th><th>Registered</th></tr></thead>
+        <tbody id="citizens-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Smart Waste Management System &nbsp;|&nbsp; Pune Municipal Corporation &nbsp;|&nbsp;
+  Department of Solid Waste Management &nbsp;|&nbsp; All records are official municipal data.
+</footer>
+
+<div id="toast"></div>
+
+<script>
+  const API = 'http://localhost:3001/api';
+
+  // ── CLOCK ──
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString('en-IN');
+    document.getElementById('today-date').textContent = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  setInterval(updateClock, 1000); updateClock();
+
+  // ── NAV ──
+  function showPage(page, btn) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    btn.classList.add('active');
+    loadPage(page);
+  }
+
+  // ── TOAST ──
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  // ── FILL CELL ──
+  function fillCell(level) {
+    const cls = level > 80 ? 'fill-high' : level > 50 ? 'fill-mid' : 'fill-low';
+    const color = level > 80 ? '#8b0000' : level > 50 ? '#b5460f' : '#40916c';
+    return `<div class="fill-bar-wrap">
+      <div class="fill-bar"><div class="fill-bar-inner ${cls}" style="width:${level}%"></div></div>
+      <span class="fill-pct" style="color:${color}">${level}%</span>
+    </div>`;
+  }
+
+  function typeBadge(t) {
+    return `<span class="badge badge-${t}">${t}</span>`;
+  }
+  function statusBadge(s) {
+    const map = { open: 'badge-open', in_progress: 'badge-progress', resolved: 'badge-resolved',
+                  active: 'badge-active', on_leave: 'badge-progress', inactive: 'badge-inactive' };
+    const label = s.replace('_', ' ');
+    return `<span class="badge ${map[s] || ''}">${label}</span>`;
+  }
+  function fmtDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ── ZONES INTO SELECTS ──
+  async function populateZones() {
+    const zones = await fetch(API + '/zones').then(r => r.json());
+    const ids = ['bin-zone', 'col-zone', 'cit-zone'];
+    ids.forEach(id => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      sel.innerHTML = zones.map(z => `<option value="${z.zone_id}">${z.zone_name}</option>`).join('');
+    });
+    return zones;
+  }
+  async function populateBins() {
+    const bins = await fetch(API + '/bins').then(r => r.json());
+    const sel = document.getElementById('cmp-bin');
+    const sel2 = document.getElementById('log-bin');
+    if (sel) sel.innerHTML = bins.map(b => `<option value="${b.bin_id}">Bin #${b.bin_id} — ${b.bin_type} (${b.zone_name})</option>`).join('');
+    if (sel2) sel2.innerHTML = bins.map(b => `<option value="${b.bin_id}">Bin #${b.bin_id} — ${b.bin_type} (${b.zone_name})</option>`).join('');
+  }
+  async function populateCitizens() {
+    const c = await fetch(API + '/citizens').then(r => r.json());
+    const sel = document.getElementById('cmp-citizen');
+    if (sel) sel.innerHTML = c.map(x => `<option value="${x.citizen_id}">${x.name}</option>`).join('');
+  }
+  async function populateCollectors() {
+    const c = await fetch(API + '/collectors').then(r => r.json());
+    const sel = document.getElementById('log-collector');
+    if (sel) sel.innerHTML = c.map(x => `<option value="${x.collector_id}">${x.name}</option>`).join('');
+  }
+
+  // ── LOAD PAGES ──
+  async function loadPage(page) {
+    if (page === 'dashboard') await loadDashboard();
+    else if (page === 'bins') { await populateZones(); await loadBins(); }
+    else if (page === 'collectors') { await populateZones(); await loadCollectors(); }
+    else if (page === 'complaints') { await populateBins(); await populateCitizens(); await loadComplaints(); }
+    else if (page === 'logs') { await populateBins(); await populateCollectors(); await loadLogs(); }
+    else if (page === 'schedule') await loadSchedule();
+    else if (page === 'citizens') { await populateZones(); await loadCitizens(); }
+  }
+
+  // ── DASHBOARD ──
+  async function loadDashboard() {
+    const [stats, bins, complaints] = await Promise.all([
+      fetch(API + '/stats').then(r => r.json()),
+      fetch(API + '/bins').then(r => r.json()),
+      fetch(API + '/complaints').then(r => r.json())
+    ]);
+
+    document.getElementById('s-bins').textContent = stats.totalBins;
+    document.getElementById('s-critical').textContent = stats.criticalBins;
+    document.getElementById('s-complaints').textContent = stats.openComplaints;
+    document.getElementById('s-collectors').textContent = stats.activeCollectors;
+    document.getElementById('s-collections').textContent = stats.totalCollections;
+    document.getElementById('s-weight').textContent = stats.totalWeight;
+
+    const alertBar = document.getElementById('alert-critical');
+    alertBar.classList.toggle('show', stats.criticalBins > 0);
+
+    const critical = bins.filter(b => b.fill_level > 80);
+    document.getElementById('critical-bins-table').innerHTML = critical.length
+      ? critical.map(b => `<tr>
+          <td>#${b.bin_id}</td>
+          <td>${b.zone_name}</td>
+          <td>${typeBadge(b.bin_type)}</td>
+          <td>${fillCell(b.fill_level)}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">No critical bins</td></tr>';
+
+    document.getElementById('recent-complaints-table').innerHTML = complaints.slice(0, 5).map(c => `
+      <tr>
+        <td>#${c.complaint_id}</td>
+        <td>${c.zone_name}</td>
+        <td>${c.citizen_name}</td>
+        <td>${statusBadge(c.status)}</td>
+      </tr>`).join('');
+  }
+
+  // ── BINS ──
+  async function loadBins() {
+    const bins = await fetch(API + '/bins').then(r => r.json());
+    document.getElementById('bin-count').textContent = bins.length + ' records';
+    document.getElementById('bins-table').innerHTML = bins.map(b => `
+      <tr>
+        <td>#${b.bin_id}</td>
+        <td>${b.zone_name}</td>
+        <td>${typeBadge(b.bin_type)}</td>
+        <td>${fillCell(b.fill_level)}</td>
+        <td style="font-size:0.8rem;color:#666">${b.location_lat.toFixed(4)}, ${b.location_lng.toFixed(4)}</td>
+        <td style="font-size:0.8rem">${fmtDate(b.last_updated)}</td>
+        <td>
+          <button class="btn btn-warn btn-sm" onclick="updateFill(${b.bin_id})">Update Fill</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteBin(${b.bin_id})">Remove</button>
+        </td>
+      </tr>`).join('');
+  }
+
+  async function addBin() {
+    const body = {
+      zone_id: document.getElementById('bin-zone').value,
+      bin_type: document.getElementById('bin-type').value,
+      location_lat: document.getElementById('bin-lat').value,
+      location_lng: document.getElementById('bin-lng').value,
+      fill_level: document.getElementById('bin-fill').value || 0
+    };
+    await fetch(API + '/bins', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    toast('Bin registered successfully.');
+    loadBins();
+  }
+
+  async function updateFill(id) {
+    const val = prompt('Enter new fill level (0–100):');
+    if (val === null || val === '') return;
+    await fetch(`${API}/bins/${id}/fill`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ fill_level: parseInt(val) }) });
+    toast(`Bin #${id} fill level updated.`);
+    loadBins();
+  }
+
+  async function deleteBin(id) {
+    if (!confirm(`Remove Bin #${id} from the registry?`)) return;
+    await fetch(`${API}/bins/${id}`, { method: 'DELETE' });
+    toast(`Bin #${id} removed.`);
+    loadBins();
+  }
+
+  // ── COLLECTORS ──
+  async function loadCollectors() {
+    const cols = await fetch(API + '/collectors').then(r => r.json());
+    document.getElementById('collectors-table').innerHTML = cols.map(c => `
+      <tr>
+        <td>#${c.collector_id}</td>
+        <td>${c.name}</td>
+        <td>${c.phone}</td>
+        <td>${c.vehicle_no || '—'}</td>
+        <td>${c.zone_name || '—'}</td>
+        <td>${c.joined_date || '—'}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td>
+          <button class="btn btn-warn btn-sm" onclick="toggleStatus(${c.collector_id}, '${c.status}')">Toggle</button>
+        </td>
+      </tr>`).join('');
+  }
+
+  async function addCollector() {
+    const body = {
+      name: document.getElementById('col-name').value,
+      phone: document.getElementById('col-phone').value,
+      vehicle_no: document.getElementById('col-vehicle').value,
+      zone_id: document.getElementById('col-zone').value,
+      joined_date: document.getElementById('col-date').value
+    };
+    await fetch(API + '/collectors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    toast('Collector enrolled.');
+    loadCollectors();
+  }
+
+  async function toggleStatus(id, current) {
+    const next = current === 'active' ? 'inactive' : 'active';
+    await fetch(`${API}/collectors/${id}/status`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: next }) });
+    toast(`Status updated to ${next}.`);
+    loadCollectors();
+  }
+
+  // ── COMPLAINTS ──
+  async function loadComplaints() {
+    const data = await fetch(API + '/complaints').then(r => r.json());
+    document.getElementById('complaints-table').innerHTML = data.map(c => `
+      <tr>
+        <td>#${c.complaint_id}</td>
+        <td>${c.citizen_name}</td>
+        <td>${c.zone_name}</td>
+        <td>${typeBadge(c.bin_type)}</td>
+        <td style="max-width:220px;font-size:0.83rem">${c.description || '—'}</td>
+        <td style="font-size:0.8rem">${fmtDate(c.created_at)}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td>
+          ${c.status !== 'resolved' ? `
+            <select onchange="updateComplaintStatus(${c.complaint_id}, this.value)" style="font-size:0.78rem;padding:3px 6px;border:1px solid #ccc">
+              <option value="open" ${c.status==='open'?'selected':''}>Open</option>
+              <option value="in_progress" ${c.status==='in_progress'?'selected':''}>In Progress</option>
+              <option value="resolved">Resolved</option>
+            </select>` : '—'}
+        </td>
+      </tr>`).join('');
+  }
+
+  async function addComplaint() {
+    const body = {
+      citizen_id: document.getElementById('cmp-citizen').value,
+      bin_id: document.getElementById('cmp-bin').value,
+      description: document.getElementById('cmp-desc').value
+    };
+    await fetch(API + '/complaints', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    document.getElementById('cmp-desc').value = '';
+    toast('Complaint filed.');
+    loadComplaints();
+  }
+
+  async function updateComplaintStatus(id, status) {
+    await fetch(`${API}/complaints/${id}/status`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+    toast('Complaint status updated.');
+    loadComplaints();
+  }
+
+  // ── LOGS ──
+  async function loadLogs() {
+    const logs = await fetch(API + '/logs').then(r => r.json());
+    document.getElementById('logs-table').innerHTML = logs.map(l => `
+      <tr>
+        <td>#${l.log_id}</td>
+        <td>#${l.bin_id}</td>
+        <td>${l.zone_name}</td>
+        <td>${typeBadge(l.bin_type)}</td>
+        <td>${l.collector_name}</td>
+        <td>${l.weight_kg ? l.weight_kg + ' kg' : '—'}</td>
+        <td style="font-size:0.8rem">${fmtDate(l.collected_at)}</td>
+      </tr>`).join('');
+  }
+
+  async function addLog() {
+    const body = {
+      bin_id: document.getElementById('log-bin').value,
+      collector_id: document.getElementById('log-collector').value,
+      weight_kg: document.getElementById('log-weight').value,
+      waste_type: document.getElementById('log-type').value
+    };
+    await fetch(API + '/logs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    toast('Collection logged. Bin fill level reset to 0%.');
+    loadLogs();
+    populateBins();
+  }
+
+  // ── SCHEDULE ──
+  async function loadSchedule() {
+    const schedules = await fetch(API + '/schedules').then(r => r.json());
+    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const grid = document.getElementById('schedule-grid');
+    grid.innerHTML = days.map(day => {
+      const items = schedules.filter(s => s.pickup_day === day);
+      return `<div class="schedule-day">
+        <div class="schedule-day-header">${day}</div>
+        ${items.map(s => `<div class="schedule-item"><strong>${s.pickup_time}</strong><br>${s.zone_name}<br>${s.collector_name}</div>`).join('')}
+        ${items.length === 0 ? '<div style="font-size:0.75rem;color:#bbb;margin-top:8px">No pickup</div>' : ''}
+      </div>`;
+    }).join('');
+
+    document.getElementById('schedule-table').innerHTML = schedules.map(s => `
+      <tr>
+        <td>#${s.schedule_id}</td>
+        <td>${s.zone_name}</td>
+        <td>${s.collector_name}</td>
+        <td>${s.pickup_day}</td>
+        <td>${s.pickup_time}</td>
+      </tr>`).join('');
+  }
+
+  // ── CITIZENS ──
+  async function loadCitizens() {
+    const data = await fetch(API + '/citizens').then(r => r.json());
+    document.getElementById('citizens-table').innerHTML = data.map(c => `
+      <tr>
+        <td>#${c.citizen_id}</td>
+        <td>${c.name}</td>
+        <td>${c.phone || '—'}</td>
+        <td>${c.email || '—'}</td>
+        <td>${c.zone_name || '—'}</td>
+        <td style="font-size:0.8rem">${fmtDate(c.registered_at)}</td>
+      </tr>`).join('');
+  }
+
+  async function addCitizen() {
+    const body = {
+      name: document.getElementById('cit-name').value,
+      phone: document.getElementById('cit-phone').value,
+      email: document.getElementById('cit-email').value,
+      zone_id: document.getElementById('cit-zone').value
+    };
+    await fetch(API + '/citizens', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    toast('Citizen registered.');
+    loadCitizens();
+  }
+
+  // ── INIT ──
+  loadDashboard();
+</script>
+</body>
+</html>
