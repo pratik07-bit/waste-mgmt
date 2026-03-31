@@ -96,7 +96,7 @@ body{display:grid;grid-template-columns:1fr 1fr;background:var(--g900);}
   </div>
 </div>
 <script>
-const API='http://localhost:3001/api';
+const API='https://waste-mgmt-je1r.onrender.com/api';
 if(sessionStorage.getItem('wms_token'))window.location.href='dashboard.html';
 function fill(e,p){document.getElementById('email').value=e;document.getElementById('pwd').value=p;login();}
 async function login(){
