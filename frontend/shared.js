@@ -1,6 +1,6 @@
 /* shared.js — loaded by every page */
 'use strict';
-const API = 'https://waste-mgmt-xyz.onrender.com/api';
+const API = 'https://waste-mgmt-l1l1.onrender.com/api';
 
 /* ── AUTH ────────────────────────────────────────────────────────── */
 function getToken(){ return sessionStorage.getItem('wms_token'); }
